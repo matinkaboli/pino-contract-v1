@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.7.6;
+pragma solidity =0.8.16;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -79,14 +79,14 @@ contract Curve is Ownable {
   /// @param j Index of the token expected to receive
   /// @param dx Amount of token[i] to send to the pool to swap
   /// @param minDy Minimum amount of token[j] expected to receive
-  function exchange(address pool, int128 i, int128 j, uint dx, uint minDy) public payable {
-    IERC20(tokens[uint(i)]).transferFrom(msg.sender, address(this), dx);
-    IERC20(tokens[uint(i)]).approve(pool, dx);
-
-    uint liquidity = Pool(pool).exchange(i, j, dx, minDy);
-    
-    IERC20(tokens[uint(j)]).transfer(msg.sender, liquidity);
-  }
+  // function exchange(address pool, int128 i, int128 j, uint dx, uint minDy) public payable {
+  //   IERC20(tokens[uint(i)]).transferFrom(msg.sender, address(this), dx);
+  //   IERC20(tokens[uint(i)]).approve(pool, dx);
+  //
+  //   uint liquidity = Pool(pool).exchange(i, j, dx, minDy);
+  //   
+  //   IERC20(tokens[uint(j)]).transfer(msg.sender, liquidity);
+  // }
 
   /// @notice Withdraws fees and transfers them to owner
   function withdrawAdmin() public onlyOwner {

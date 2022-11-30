@@ -27,15 +27,15 @@ describe("Curve", () => {
       USDT,
     ]);
 
-    await dai.connect(vitalik).approve(curve.address, 20_00000000000000);
+    await dai.connect(vitalik).approve(curve.address, 90n * 10n ** 18n);
     await usdc.connect(vitalik).approve(curve.address, 100_000000);
     await usdt.connect(vitalik).approve(curve.address, 100_000000);
 
-    await curve.connect(vitalik).approve(DAI, {
+    await curve.connect(vitalik).approve(0, {
       gasLimit: 3000000,
     });
 
-    await curve.connect(vitalik).approve(USDC, {
+    await curve.connect(vitalik).approve(1, {
       gasLimit: 3000000,
     });
 
@@ -62,6 +62,7 @@ describe("Curve", () => {
 
     const addLiquidity = await curve.connect(vitalik).addLiquidity(amounts, 0, {
       gasLimit: 3000000,
+      value: 100,
     });
 
     const { gasUsed } = await addLiquidity.wait();
@@ -72,18 +73,18 @@ describe("Curve", () => {
   it.skip("Should exchange DAI for USDC", async () => {
     const curve = await loadFixture(deploy);
 
+    const daiAmount = 50n * 10n ** 18n; // 50 DAI
     const usdcAmount = 50_000000;
 
-    await usdc.connect(vitalik).approve(curve.address, usdcAmount);
+    const balanceBefore = await dai.balanceOf(vitalik.address);
+    console.log(`DAI balance before exchange: ${balanceBefore}`);
 
-    const exchange = await curve
-      .connect(vitalik)
-      .exchange(1, 0, usdcAmount, 0, {
-        gasLimit: 5000000,
-      });
+    const exchange = await curve.connect(vitalik).exchange(0, 1, daiAmount, 0, {
+      gasLimit: 30000000,
+      value: 100,
+    });
 
-    const balanceAfter = await usdc.balanceOf(curve.address);
-
-    console.log(balanceAfter);
+    const balanceAfter = await dai.balanceOf(curve.address);
+    console.log(`DAI balance after exchange: ${balanceAfter}`);
   });
 });
