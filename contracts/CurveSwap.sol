@@ -14,15 +14,25 @@ interface ICurveSwap {
   ) external payable returns (uint);
 }
 
+/// @title Curve swap proxy contract
+/// @author Matin Kaboli
+/// @notice Exchanges tokens from different pools
 contract CurveSwap is Ownable {
   using SafeERC20 for IERC20;
 
   address immutable public swap;
 
+  /// @notice Receives swap contract address
+  /// @param _swap Swap contract address
   constructor(address _swap) {
     swap = _swap;
   }
 
+  /// @notice Exchanges 2 tokens using different pools
+  /// @param from The sending IERC20 token 
+  /// @param to The receiving IERC20 token 
+  /// @param amount The amount of sending token
+  /// @param expected The expected amount of receiving token (minimum amount)
   function exchange(address from, address to, uint amount, uint expected) external payable returns (uint) {
     IERC20(from).safeTransferFrom(msg.sender, address(this), amount);
     IERC20(from).approve(swap, type(uint).max);
