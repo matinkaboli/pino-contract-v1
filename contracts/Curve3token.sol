@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.16;
 
+import "hardhat/console.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface Pool {
-  function calc_token_amount(uint256[] memory amounts, bool deposit) view external returns (uint256);
-  function coins(uint256) view external returns (address);
-  function exchange(int128 i, int128 j, uint256 dx, uint256 min_dy) external;
-  function add_liquidity(uint256[3] memory amounts, uint256 min_mint_amount) external;
-  function remove_liquidity(uint256 _amount, uint256[3] memory min_amounts) external;
-  function get_dy(int128 i, int128 j, uint256 dx) view external returns (uint256);
+  function add_liquidity(uint[3] memory amounts, uint min_mint_amount) external;
+  function remove_liquidity(uint _amount, uint[3] memory min_amounts) external;
+  function remove_liquidity_one_coin(uint _token_amount, uint i, uint _min_amount) external returns (uint);
 }
 
 /// @title Curve proxy contract 
@@ -36,19 +34,32 @@ contract Curve3Token is Ownable {
     IERC20(tokens[0]).safeApprove(_pool, type(uint).max);
     IERC20(tokens[1]).safeApprove(_pool, type(uint).max);
     IERC20(tokens[2]).safeApprove(_pool, type(uint).max);
+    IERC20(_token).safeApprove(_pool, type(uint).max);
   }
 
   /// @notice Adds liquidity to a pool
   /// @param _amounts Amounts of the tokens respectively
   /// @param _minMintAmount Minimum liquidity expected to receive after adding liquidity
   function addLiquidity(uint256[3] memory _amounts, uint256 _minMintAmount) public payable {
-    for (uint8 i = 0; i < 3; i += 1) {
-      if (_amounts[i] > 0) {
-        IERC20(tokens[i]).safeTransferFrom(msg.sender, address(this), _amounts[i]);
-      }
+    if (_amounts[0] > 0) {
+      IERC20(tokens[0]).safeTransferFrom(msg.sender, address(this), _amounts[0]);
     }
 
+    if (_amounts[1] > 0) {
+      IERC20(tokens[1]).safeTransferFrom(msg.sender, address(this), _amounts[1]);
+    }
+
+    if (_amounts[2] > 0) {
+      IERC20(tokens[2]).safeTransferFrom(msg.sender, address(this), _amounts[2]);
+    }
+
+    uint balanceBefore = IERC20(token).balanceOf(address(this));
+
     Pool(pool).add_liquidity(_amounts, _minMintAmount);
+
+    uint balanceAfter = IERC20(token).balanceOf(address(this));
+
+    IERC20(token).transfer(msg.sender, balanceAfter - balanceBefore);
   }
 
   /// @notice Removes liquidity from the pool
@@ -56,24 +67,46 @@ contract Curve3Token is Ownable {
   /// @param minAmounts Minimum amounts expected to receive after withdrawal
   function removeLiquidity(uint liquidity, uint[3] memory minAmounts) public payable {
     IERC20(token).transferFrom(msg.sender, address(this), liquidity);
+
+    uint balance1Before = IERC20(tokens[0]).balanceOf(address(this));
+    uint balance2Before = IERC20(tokens[1]).balanceOf(address(this));
+    uint balance3Before = IERC20(tokens[2]).balanceOf(address(this));
+
     Pool(pool).remove_liquidity(liquidity, minAmounts);
-  }
 
-  /// @notice Exchanges 2 tokens in a pool
-  /// @param _i Index of the token sent to swap
-  /// @param j Index of the token expected to receive
-  /// @param dx Amount of token[i] to send to the pool to swap
-  /// @param minDy Minimum amount of token[j] expected to receive
-  function exchange(int128 _i, int128 j, uint dx, uint minDy) public payable {
-    uint8 i = 0; 
+    uint balance1After = IERC20(tokens[0]).balanceOf(address(this));
+    uint balance2After = IERC20(tokens[1]).balanceOf(address(this));
+    uint balance3After = IERC20(tokens[2]).balanceOf(address(this));
 
-    if (_i == 1) {
-      i = 1;
+    if (balance1After > balance1Before) {
+      IERC20(tokens[0]).transfer(msg.sender, balance1After - balance1Before);
     }
 
-    IERC20(tokens[i]).safeTransferFrom(msg.sender, address(this), dx);
+    if (balance2After > balance2Before) {
+      IERC20(tokens[1]).transfer(msg.sender, balance2After - balance2Before);
+    }
 
-    Pool(pool).exchange(_i, j, dx, minDy);
+    console.log("%s %s", balance2After, balance2Before);
+
+    if (balance3After > balance3Before) {
+      IERC20(tokens[2]).safeTransferFrom(address(this), msg.sender, balance3After - balance3Before);
+    }
+  }
+
+  /// @notice Removes liquidity and received only 1 token in return
+  /// @param _amount Amount of LP token to burn
+  /// @param _i Index of receiving token in the pool
+  /// @param min_amount Minimum amount expected to receive from token[i]
+  function removeLiquidityOneCoin(uint _amount, uint _i, uint min_amount) public payable {
+    IERC20(token).safeTransferFrom(msg.sender, address(this), _amount);
+
+    uint balanceBefore = IERC20(tokens[_i]).balanceOf(address(this));
+
+    Pool(pool).remove_liquidity_one_coin(_amount, _i, min_amount);
+
+    uint balanceAfter = IERC20(tokens[_i]).balanceOf(address(this));
+
+    IERC20(tokens[_i]).transfer(msg.sender, balanceAfter - balanceBefore);
   }
 
   /// @notice Withdraws fees and transfers them to owner
