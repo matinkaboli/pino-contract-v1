@@ -64,13 +64,28 @@ describe("CurveSwap", () => {
 
     await usdc.connect(accounts[0]).approve(curve.address, exchangeAmount);
 
-    await curve.exchange(USDC, DAI, exchangeAmount, 0);
+    const a = await curve.exchange(USDC, DAI, exchangeAmount, 0);
+    const b = await a.wait();
+
+    console.log(b.gasUsed);
     // 1979935
 
     const daiBalance = await dai.balanceOf(accounts[0].address);
 
-    console.log(daiBalance);
-
     expect(daiBalance).to.be.gte(daiAmount);
+  });
+
+  describe("Admin actions", () => {
+    it("Withdraws money", async () => {
+      const curve = await loadFixture(deploy);
+
+      await curve.connect(accounts[0]).withdrawAdmin();
+
+      const balanceAfterWithdrawal = await ethers.provider.getBalance(
+        curve.address
+      );
+
+      expect(balanceAfterWithdrawal).to.equal(0);
+    });
   });
 });
