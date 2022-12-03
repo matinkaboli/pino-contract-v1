@@ -6,20 +6,19 @@ import { IERC20 } from "../typechain-types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 
-const CRV = "0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490";
 const DAI = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const USDC = "0xA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48";
 const USDT = "0xDAC17F958D2EE523A2206206994597C13D831EC7";
 const POOL = "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7";
-const WHALE = "0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8";
-const amount = 1000n * 10n ** 6n; // $1000
-const daiAmount = 1000n * 10n ** 18n; // $1000
+const POOL_TOKEN = "0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490";
 
-describe("Curve 3 Pool", () => {
-  let crv: IERC20;
+const WHALE = "0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8";
+
+describe("Curve3Pool (DAI - USDC - USDT)", () => {
   let dai: IERC20;
   let usdc: IERC20;
   let usdt: IERC20;
+  let poolToken: IERC20;
   let accounts: SignerWithAddress[];
 
   const deploy = async () => {
@@ -27,9 +26,9 @@ describe("Curve 3 Pool", () => {
     const curve2Token = await Curve2Token.connect(accounts[0]).deploy(
       POOL,
       [DAI, USDC, USDT],
-      CRV,
+      POOL_TOKEN,
       {
-        gasLimit: 2_000_000,
+        gasLimit: 5_000_000,
       }
     );
 
@@ -42,13 +41,16 @@ describe("Curve 3 Pool", () => {
       params: [WHALE],
     });
 
-    crv = await ethers.getContractAt("IERC20", DAI);
     dai = await ethers.getContractAt("IERC20", DAI);
     usdc = await ethers.getContractAt("IERC20", USDC);
     usdt = await ethers.getContractAt("IERC20", USDT);
+    poolToken = await ethers.getContractAt("IERC20", POOL_TOKEN);
 
     accounts = await ethers.getSigners();
     const whale = await ethers.getSigner(WHALE);
+
+    const amount = 1000n * 10n ** 6n; // $1000
+    const daiAmount = 1000n * 10n ** 18n; // $1000
 
     await usdc.connect(whale).transfer(accounts[0].address, amount);
     await usdt.connect(whale).transfer(accounts[0].address, amount);
@@ -63,36 +65,210 @@ describe("Curve 3 Pool", () => {
     expect(daiBalance).to.equal(daiAmount);
   });
 
-  it("Should add liquidity for 2 tokens", async () => {
-    const curve = await loadFixture(deploy);
+  describe("Add Liquidity", () => {
+    it("Adds liquidity only for USDC", async () => {
+      const curve = await loadFixture(deploy);
 
-    const hundred = 100n * 10n ** 6n;
-    const expectedLiquidity = 1000n * 10n ** 18n;
+      const hundredUsdc = 100n * 10n ** 6n;
 
-    await usdc.connect(accounts[0]).approve(curve.address, hundred);
-    await usdt.connect(accounts[0]).approve(curve.address, hundred);
+      await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
 
-    const amounts = [0n, hundred, hundred];
-
-    await curve.connect(accounts[0]).addLiquidity(amounts, 0, {
-      value: 100,
+      await curve.connect(accounts[0]).addLiquidity([0, hundredUsdc, 0], 0, {
+        value: 100,
+      });
+      // gasUsed: 232k
     });
-    // 266649
+
+    it("Adds liquidity only for DAI", async () => {
+      const curve = await loadFixture(deploy);
+
+      const hundredDai = 100n * 10n ** 18n;
+
+      await dai.connect(accounts[0]).approve(curve.address, hundredDai);
+
+      await curve.connect(accounts[0]).addLiquidity([hundredDai, 0, 0], 0, {
+        value: 100,
+      });
+      // gasUsed: 215k
+    });
+
+    it("Adds liquidity only for USDT", async () => {
+      const curve = await loadFixture(deploy);
+
+      const hundredUsdt = 100n * 10n ** 6n;
+
+      await usdt.connect(accounts[0]).approve(curve.address, hundredUsdt);
+
+      await curve.connect(accounts[0]).addLiquidity([0, 0, hundredUsdt], 0, {
+        value: 100,
+      });
+      // gasUsed: 228k
+    });
+
+    it("Adds liquidity for 2 tokens: DAI - USDC", async () => {
+      const curve = await loadFixture(deploy);
+
+      const hundredUsdc = 100n * 10n ** 6n;
+      const hundredDai = 100n * 10n ** 18n;
+
+      await dai.connect(accounts[0]).approve(curve.address, hundredDai);
+      await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
+
+      await curve
+        .connect(accounts[0])
+        .addLiquidity([hundredDai, hundredUsdc, 0], 0, {
+          value: 100,
+        });
+      // gasUsed: 276k
+    });
+
+    it("Adds liquidity for 2 tokens: DAI - USDT", async () => {
+      const curve = await loadFixture(deploy);
+
+      const hundredUsdt = 100n * 10n ** 6n;
+      const hundredDai = 100n * 10n ** 18n;
+
+      await dai.connect(accounts[0]).approve(curve.address, hundredDai);
+      await usdt.connect(accounts[0]).approve(curve.address, hundredUsdt);
+
+      await curve
+        .connect(accounts[0])
+        .addLiquidity([hundredDai, 0, hundredUsdt], 0, {
+          value: 100,
+        });
+      // gasUsed: 272k
+    });
+
+    it("Adds liquidity for 2 tokens: USDC - USDT", async () => {
+      const curve = await loadFixture(deploy);
+
+      const hundredUsdc = 100n * 10n ** 6n;
+      const hundredUsdt = 100n * 10n ** 6n;
+
+      await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
+      await usdt.connect(accounts[0]).approve(curve.address, hundredUsdt);
+
+      await curve
+        .connect(accounts[0])
+        .addLiquidity([0, hundredUsdc, hundredUsdt], 0, {
+          value: 100,
+        });
+      // gasUsed: 288k
+    });
+
+    it("Adds liquidity for 3 tokens: DAI - USDC - USDT", async () => {
+      const curve = await loadFixture(deploy);
+
+      const hundredDai = 100n * 10n ** 18n;
+      const hundredUsdc = 100n * 10n ** 6n;
+      const hundredUsdt = 100n * 10n ** 6n;
+
+      await dai.connect(accounts[0]).approve(curve.address, hundredDai);
+      await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
+      await usdt.connect(accounts[0]).approve(curve.address, hundredUsdt);
+
+      await curve
+        .connect(accounts[0])
+        .addLiquidity([hundredDai, hundredUsdc, hundredUsdt], 0, {
+          value: 100,
+        });
+      // gasUsed: 332k
+    });
   });
 
-  it("Should exchange USDT for USDC", async () => {
-    const curve = await loadFixture(deploy);
+  describe("Remove Liquidity", () => {
+    it("Should add_liquidity for 2 tokens and remove_liquidity", async () => {
+      const curve = await loadFixture(deploy);
 
-    const exchangeAmount = 50n * 10n ** 6n;
+      const hundredDai = 100n * 10n ** 2n;
+      const hundredUsdc = 100n * 10n ** 6n;
 
-    const usdtBefore = await usdt.balanceOf(accounts[0].address);
+      await dai.connect(accounts[0]).approve(curve.address, hundredDai);
+      await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
 
-    await usdc.connect(accounts[0]).approve(curve.address, exchangeAmount);
-    await curve.exchange(1, 2, exchangeAmount, 0);
-    // 148401
+      await curve
+        .connect(accounts[0])
+        .addLiquidity([hundredDai, hundredUsdc, 0], 0, {
+          value: 100,
+        });
+      // gasUsed: 332k
 
-    const usdtAfter = await usdt.balanceOf(accounts[0].address);
+      const poolBalance = await poolToken.balanceOf(accounts[0].address);
 
-    expect(usdtAfter).to.be.gte(usdtBefore);
+      expect(poolBalance).to.be.gte(1n * 10n ** 18n);
+
+      console.log(poolBalance);
+
+      await poolToken.connect(accounts[0]).approve(curve.address, poolBalance);
+
+      const dBalance0 = await dai.balanceOf(accounts[0].address);
+      const uBalance0 = await usdc.balanceOf(accounts[0].address);
+
+      const a = await curve
+        .connect(accounts[0])
+        .removeLiquidity(poolBalance, [1000, 100000, 0], {
+          value: 10000,
+          gasLimit: 5_000_000,
+        });
+      const b = await a.wait();
+      console.log(b.gasUsed);
+      // gasUsed: 209k
+
+      const dBalance1 = await dai.balanceOf(accounts[0].address);
+      const uBalance1 = await usdc.balanceOf(accounts[0].address);
+
+      expect(uBalance1).to.be.gt(uBalance0);
+      expect(dBalance1).to.be.gt(dBalance0);
+    });
+
+    it("Should add_liquidity for 2 tokens and remove_one_coin", async () => {
+      const curve = await loadFixture(deploy);
+
+      const hundredUsdc = 100n * 10n ** 6n;
+      const hundredUsdt = 100n * 10n ** 6n;
+
+      await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
+      await usdt.connect(accounts[0]).approve(curve.address, hundredUsdt);
+
+      await curve
+        .connect(accounts[0])
+        .addLiquidity([0, hundredUsdc, hundredUsdt], 0, {
+          value: 100,
+        });
+
+      const poolBalance = await poolToken.balanceOf(accounts[0].address);
+
+      expect(poolBalance).to.be.gte(1n * 10n ** 18n);
+
+      await poolToken.connect(accounts[0]).approve(curve.address, poolBalance);
+
+      const dBalance0 = await dai.balanceOf(accounts[0].address);
+
+      await curve
+        .connect(accounts[0])
+        .removeLiquidityOneCoin(poolBalance, 0, 0, {
+          value: 10000000,
+          gasLimit: 5_000_000,
+        });
+      // gasUsed: 234k
+
+      const dBalance1 = await dai.balanceOf(accounts[0].address);
+
+      expect(dBalance1).to.be.gte(dBalance0);
+    });
+  });
+
+  describe("Admin actions", () => {
+    it("Withdraws money", async () => {
+      const curve = await loadFixture(deploy);
+
+      await curve.connect(accounts[0]).withdrawAdmin();
+
+      const balanceAfterWithdrawal = await ethers.provider.getBalance(
+        curve.address
+      );
+
+      expect(balanceAfterWithdrawal).to.equal(0);
+    });
   });
 });

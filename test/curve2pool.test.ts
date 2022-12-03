@@ -7,24 +7,27 @@ import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 
 const USDC = "0xA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48";
-const USDT = "0xDAC17F958D2EE523A2206206994597C13D831EC7";
-const POOL = "0x1005f7406f32a61bd760cfa14accd2737913d546";
-const WHALE = "0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8";
-const amount = 1000n * 10n ** 6n; // $1000
+const EURS = "0xdb25f211ab05b1c97d595516f45794528a807ad8"; // 2 decimal
+const POOL = "0x98a7f18d4e56cfe84e3d081b40001b3d5bd3eb8b";
+const POOL_TOKEN = "0x3d229e1b4faab62f621ef2f6a610961f7bd7b23b";
 
-describe("Curve 2 Pool", () => {
+const WHALE = "0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8";
+const EURS_WHALE = "0xe5379345675132653bd303030c6e456034ed1961";
+
+describe("Curve2Pool (USDC - EURS)", () => {
   let usdc: IERC20;
-  let usdt: IERC20;
-  let pool: IERC20;
+  let eurs: IERC20;
+  let poolToken: IERC20;
   let accounts: SignerWithAddress[];
 
   const deploy = async () => {
     const Curve2Token = await ethers.getContractFactory("Curve2Token");
     const curve2Token = await Curve2Token.connect(accounts[0]).deploy(
       POOL,
-      [USDC, USDT],
+      [USDC, EURS],
+      POOL_TOKEN,
       {
-        gasLimit: 2_000_000,
+        gasLimit: 5_000_000,
       }
     );
 
@@ -37,65 +40,146 @@ describe("Curve 2 Pool", () => {
       params: [WHALE],
     });
 
+    await hardhat.network.provider.request({
+      method: "hardhat_impersonateAccount",
+      params: [EURS_WHALE],
+    });
+
+    const whale = await ethers.getSigner(WHALE);
+    const eursWhale = await ethers.getSigner(EURS_WHALE);
+
     usdc = await ethers.getContractAt("IERC20", USDC);
-    usdt = await ethers.getContractAt("IERC20", USDT);
-    pool = await ethers.getContractAt("IERC20", POOL);
+    eurs = await ethers.getContractAt("IERC20", EURS);
+    poolToken = await ethers.getContractAt("IERC20", POOL_TOKEN);
 
     accounts = await ethers.getSigners();
-    const whale = await ethers.getSigner(WHALE);
 
-    await usdc.connect(whale).transfer(accounts[0].address, amount);
-    await usdt.connect(whale).transfer(accounts[0].address, amount);
+    const usdcAmount = 1000n * 10n ** 6n; // $1000
+    const eursAmount = 1000n * 10n ** 2n; // $1000
+
+    await usdc.connect(whale).transfer(accounts[0].address, usdcAmount);
+    await eurs.connect(eursWhale).transfer(accounts[0].address, eursAmount);
 
     const usdcBalance = await usdc.balanceOf(accounts[0].address);
-    const usdtBalance = await usdt.balanceOf(accounts[0].address);
+    const eursBalance = await eurs.balanceOf(accounts[0].address);
 
-    expect(usdtBalance).to.equal(amount);
-    expect(usdcBalance).to.equal(amount);
+    expect(usdcBalance).to.equal(usdcAmount);
+    expect(eursBalance).to.equal(eursBalance);
   });
 
-  it("Should add liquidity for 2 tokens", async () => {
-    const curve = await loadFixture(deploy);
+  describe("Add Liquidity", () => {
+    it("Adds liquidity only for USDC", async () => {
+      const curve = await loadFixture(deploy);
 
-    const hundred = 100n * 10n ** 6n;
-    const expectedLiquidity = 199n * 10n ** 18n;
+      const hundredUsdc = 100n * 10n ** 6n;
 
-    await usdc.connect(accounts[0]).approve(curve.address, hundred);
-    await usdt.connect(accounts[0]).approve(curve.address, hundred);
+      await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
 
-    await curve.connect(accounts[0]).addLiquidity([hundred, hundred], 0, {
-      value: 100,
-    });
-    // 213504 without for loop
-    // 213674 with for loop
-
-    const poolBalance = await pool.balanceOf(accounts[0].address);
-
-    expect(poolBalance).to.be.gte(expectedLiquidity);
-
-    await pool.connect(accounts[0]).approve(curve.address, poolBalance);
-
-    await curve
-      .connect(accounts[0])
-      .removeLiquidity(poolBalance, [hundred / 2n, 50000], {
+      await curve.connect(accounts[0]).addLiquidity([hundredUsdc, 0], 0, {
         value: 100,
       });
-    // 130166
+      // gasUsed: 240k
+    });
+
+    it("Adds liquidity only for EURS", async () => {
+      const curve = await loadFixture(deploy);
+
+      const hundredEurs = 100n * 10n ** 2n;
+
+      await eurs.connect(accounts[0]).approve(curve.address, hundredEurs);
+
+      await curve.connect(accounts[0]).addLiquidity([0, hundredEurs], 0, {
+        value: 100,
+      });
+      // gasUsed: 240k
+    });
   });
 
-  it("Should exchange USDT for USDC", async () => {
-    const curve = await loadFixture(deploy);
+  describe("Remove Liquidity", () => {
+    it("Should add_liquidity for 2 tokens and remove_liquidity", async () => {
+      const curve = await loadFixture(deploy);
 
-    const exchangeAmount = 50n * 10n ** 6n;
+      const hundredUsdc = 100n * 10n ** 6n;
+      const hundredEurs = 100n * 10n ** 2n;
 
-    const usdtBefore = await usdt.balanceOf(accounts[0].address);
+      await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
+      await eurs.connect(accounts[0]).approve(curve.address, hundredEurs);
 
-    await usdc.connect(accounts[0]).approve(curve.address, exchangeAmount);
-    await curve.exchange(0, 1, exchangeAmount, 0);
-    // 148401
+      await curve.connect(accounts[0]).addLiquidity([10, hundredEurs], 0, {
+        value: 100,
+      });
+      // gasUsed: 325k
 
-    const usdtAfter = await usdt.balanceOf(accounts[0].address);
+      const poolBalance = await poolToken.balanceOf(accounts[0].address);
 
-    expect(usdtAfter).to.be.gte(usdtBefore);
+      expect(poolBalance).to.be.gte(1n * 10n ** 18n);
+
+      await poolToken.connect(accounts[0]).approve(curve.address, poolBalance);
+
+      const uBalance0 = await usdc.balanceOf(accounts[0].address);
+      const eBalance0 = await eurs.balanceOf(accounts[0].address);
+
+      await curve.connect(accounts[0]).removeLiquidity(poolBalance, [0, 0], {
+        value: 10000,
+        gasLimit: 2_000_000,
+      });
+      // gasUsed: 201k
+
+      const uBalance1 = await usdc.balanceOf(accounts[0].address);
+      const eBalance1 = await eurs.balanceOf(accounts[0].address);
+
+      expect(uBalance1).to.be.gt(uBalance0);
+      expect(eBalance1).to.be.gt(eBalance0);
+    });
+
+    it("Should add_liquidity for 2 tokens and remove_one_coin", async () => {
+      const curve = await loadFixture(deploy);
+
+      const hundredUsdc = 100n * 10n ** 6n;
+      const hundredEurs = 100n * 10n ** 2n;
+
+      await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
+      await eurs.connect(accounts[0]).approve(curve.address, hundredEurs);
+
+      await curve
+        .connect(accounts[0])
+        .addLiquidity([hundredUsdc, hundredEurs], 0, {
+          value: 100,
+        });
+
+      const poolBalance = await poolToken.balanceOf(accounts[0].address);
+
+      expect(poolBalance).to.be.gte(1n * 10n ** 18n);
+
+      await poolToken.connect(accounts[0]).approve(curve.address, poolBalance);
+
+      const eBalance0 = await eurs.balanceOf(accounts[0].address);
+
+      await curve
+        .connect(accounts[0])
+        .removeLiquidityOneCoin(poolBalance, 0, 0, {
+          value: 10000000,
+          gasLimit: 5_000_000,
+        });
+      // gasUsed: 232k
+
+      const eBalance1 = await eurs.balanceOf(accounts[0].address);
+
+      expect(eBalance1).to.be.gte(eBalance0);
+    });
+  });
+
+  describe("Admin actions", () => {
+    it("Withdraws money", async () => {
+      const curve = await loadFixture(deploy);
+
+      await curve.connect(accounts[0]).withdrawAdmin();
+
+      const balanceAfterWithdrawal = await ethers.provider.getBalance(
+        curve.address
+      );
+
+      expect(balanceAfterWithdrawal).to.equal(0);
+    });
   });
 });
