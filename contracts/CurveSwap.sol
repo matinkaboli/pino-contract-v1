@@ -30,6 +30,7 @@ contract CurveSwap is Ownable {
   using SafeERC20 for IERC20;
 
   address immutable public swapContract;
+  mapping (address => mapping (address => bool)) private alreadyApprovedTokens;
 
   /// @notice Receives swap contract address
   /// @param _swapContract Swap contract address
@@ -45,7 +46,12 @@ contract CurveSwap is Ownable {
   /// @return uint Amount received
   function exchange(address from, address to, uint amount, uint expected) external payable returns (uint) {
     IERC20(from).safeTransferFrom(msg.sender, address(this), amount);
-    IERC20(from).approve(swapContract, type(uint).max);
+  
+    if (!alreadyApprovedTokens[from][swapContract]) {
+      IERC20(from).approve(swapContract, type(uint).max);
+
+      alreadyApprovedTokens[from][swapContract] = true;
+    }
 
     uint swapped = ICurveSwap(swapContract).exchange_with_best_rate(from, to, amount, expected, msg.sender);
 
@@ -74,7 +80,6 @@ contract CurveSwap is Ownable {
   /// @return Received amount of the final output token
   function exchange_multiple(
     address[9] memory _route,
-    address last_route,
     uint[3][4] memory _swap_params,
     uint _amount,
     uint _expected,
@@ -82,9 +87,13 @@ contract CurveSwap is Ownable {
   ) external payable returns (uint) {
     IERC20(_route[0]).safeTransferFrom(msg.sender, address(this), _amount);
 
-    uint receivedAmount = ICurveSwap(swapContract).exchange_multiple(_route, _swap_params, _amount, _expected, _pools, msg.sender);
+    if (!alreadyApprovedTokens[_route[0]][swapContract]) {
+      IERC20(_route[0]).approve(swapContract, type(uint).max);
 
-    IERC20(last_route).transfer(msg.sender, receivedAmount);
+      alreadyApprovedTokens[_route[0]][swapContract] = true;
+    }
+
+    uint receivedAmount = ICurveSwap(swapContract).exchange_multiple(_route, _swap_params, _amount, _expected, _pools, msg.sender);
 
     return receivedAmount;
   }
