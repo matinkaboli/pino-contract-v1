@@ -87,13 +87,11 @@ contract CurveSwap is Ownable {
   ) external payable returns (uint) {
     IERC20(_route[0]).safeTransferFrom(msg.sender, address(this), _amount);
 
-    IERC20(_route[0]).approve(swapContract, type(uint).max);
+    if (!alreadyApprovedTokens[_route[0]][swapContract]) {
+      IERC20(_route[0]).approve(swapContract, type(uint).max);
 
-    // if (!alreadyApprovedTokens[_route[0]][swapContract]) {
-    //   IERC20(_route[0]).approve(swapContract, type(uint).max);
-    //
-    //   alreadyApprovedTokens[_route[0]][swapContract] = true;
-    // }
+      alreadyApprovedTokens[_route[0]][swapContract] = true;
+    }
 
     ICurveSwap(swapContract).exchange_multiple(_route, _swap_params, _amount, _expected, _pools, msg.sender);
 

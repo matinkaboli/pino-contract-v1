@@ -71,12 +71,22 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
 
       const hundredUsdc = 100n * 10n ** 6n;
 
+      const poolTokenBalanceBefore = await poolToken.balanceOf(
+        accounts[0].address
+      );
+
       await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
 
       await curve.connect(accounts[0]).addLiquidity([0, hundredUsdc, 0], 0, {
         value: 100,
       });
       // gasUsed: 232k
+
+      const poolTokenBalanceAfter = await poolToken.balanceOf(
+        accounts[0].address
+      );
+
+      expect(poolTokenBalanceAfter).to.be.gt(poolTokenBalanceBefore);
     });
 
     it("Adds liquidity only for DAI", async () => {
@@ -84,12 +94,22 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
 
       const hundredDai = 100n * 10n ** 18n;
 
+      const poolTokenBalanceBefore = await poolToken.balanceOf(
+        accounts[0].address
+      );
+
       await dai.connect(accounts[0]).approve(curve.address, hundredDai);
 
       await curve.connect(accounts[0]).addLiquidity([hundredDai, 0, 0], 0, {
         value: 100,
       });
       // gasUsed: 215k
+
+      const poolTokenBalanceAfter = await poolToken.balanceOf(
+        accounts[0].address
+      );
+
+      expect(poolTokenBalanceAfter).to.be.gt(poolTokenBalanceBefore);
     });
 
     it("Adds liquidity only for USDT", async () => {
@@ -97,12 +117,22 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
 
       const hundredUsdt = 100n * 10n ** 6n;
 
+      const poolTokenBalanceBefore = await poolToken.balanceOf(
+        accounts[0].address
+      );
+
       await usdt.connect(accounts[0]).approve(curve.address, hundredUsdt);
 
       await curve.connect(accounts[0]).addLiquidity([0, 0, hundredUsdt], 0, {
         value: 100,
       });
       // gasUsed: 228k
+
+      const poolTokenBalanceAfter = await poolToken.balanceOf(
+        accounts[0].address
+      );
+
+      expect(poolTokenBalanceAfter).to.be.gt(poolTokenBalanceBefore);
     });
 
     it("Adds liquidity for 2 tokens: DAI - USDC", async () => {
@@ -110,6 +140,10 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
 
       const hundredUsdc = 100n * 10n ** 6n;
       const hundredDai = 100n * 10n ** 18n;
+
+      const poolTokenBalanceBefore = await poolToken.balanceOf(
+        accounts[0].address
+      );
 
       await dai.connect(accounts[0]).approve(curve.address, hundredDai);
       await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
@@ -120,6 +154,12 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
           value: 100,
         });
       // gasUsed: 276k
+
+      const poolTokenBalanceAfter = await poolToken.balanceOf(
+        accounts[0].address
+      );
+
+      expect(poolTokenBalanceAfter).to.be.gt(poolTokenBalanceBefore);
     });
 
     it("Adds liquidity for 2 tokens: DAI - USDT", async () => {
@@ -127,6 +167,10 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
 
       const hundredUsdt = 100n * 10n ** 6n;
       const hundredDai = 100n * 10n ** 18n;
+
+      const poolTokenBalanceBefore = await poolToken.balanceOf(
+        accounts[0].address
+      );
 
       await dai.connect(accounts[0]).approve(curve.address, hundredDai);
       await usdt.connect(accounts[0]).approve(curve.address, hundredUsdt);
@@ -137,6 +181,12 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
           value: 100,
         });
       // gasUsed: 272k
+
+      const poolTokenBalanceAfter = await poolToken.balanceOf(
+        accounts[0].address
+      );
+
+      expect(poolTokenBalanceAfter).to.be.gt(poolTokenBalanceBefore);
     });
 
     it("Adds liquidity for 2 tokens: USDC - USDT", async () => {
@@ -167,12 +217,22 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
       await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
       await usdt.connect(accounts[0]).approve(curve.address, hundredUsdt);
 
+      const poolTokenBalanceBefore = await poolToken.balanceOf(
+        accounts[0].address
+      );
+
       await curve
         .connect(accounts[0])
         .addLiquidity([hundredDai, hundredUsdc, hundredUsdt], 0, {
           value: 100,
         });
       // gasUsed: 332k
+
+      const poolTokenBalanceAfter = await poolToken.balanceOf(
+        accounts[0].address
+      );
+
+      expect(poolTokenBalanceAfter).to.be.gt(poolTokenBalanceBefore);
     });
   });
 

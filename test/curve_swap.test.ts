@@ -77,19 +77,19 @@ describe("CurveSwap", () => {
       const curve = await loadFixture(deploy);
 
       const exchangeAmount = 50n * 10n ** 6n;
-      const exchangeAmountInDai = 50n * 10n ** 18n;
+      const expectedMinimumReceived = 47n * 10n ** 18n;
 
       const daiBalanceBefore = await dai.balanceOf(accounts[0].address);
 
       await usdc.connect(accounts[0]).approve(curve.address, exchangeAmount);
 
-      await curve.exchange(USDC, DAI, exchangeAmount, 0);
+      await curve.exchange(USDC, DAI, exchangeAmount, expectedMinimumReceived);
       // gasUsed: 2001k
 
       const daiBalanceAfter = await dai.balanceOf(accounts[0].address);
 
-      expect(daiBalanceAfter).to.be.gt(
-        daiBalanceBefore.add((exchangeAmountInDai / 10n) * 9n)
+      expect(daiBalanceAfter).to.be.gte(
+        daiBalanceBefore.add(expectedMinimumReceived)
       );
     });
 
@@ -97,7 +97,7 @@ describe("CurveSwap", () => {
       const curve = await loadFixture(deploy);
 
       const exchangeAmount = 50n * 10n ** 18n;
-      const exchangeAmountInUsdc = 50n * 10n ** 6n;
+      const expectedMinimumReceived = 45n * 10n ** 6n;
 
       await dai.connect(accounts[0]).approve(curve.address, exchangeAmount);
 
@@ -108,8 +108,8 @@ describe("CurveSwap", () => {
 
       const usdcBalanceAfter = await usdc.balanceOf(accounts[0].address);
 
-      expect(usdcBalanceAfter).to.be.gt(
-        usdcBalanceBefore.add((exchangeAmountInUsdc / 10n) * 9n)
+      expect(usdcBalanceAfter).to.be.gte(
+        usdcBalanceBefore.add(expectedMinimumReceived)
       );
     });
 

@@ -75,16 +75,20 @@ describe("Curve2Pool (USDC - EURS)", () => {
 
       await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
 
-      const poolBalanceBefore = await poolToken.balanceOf(accounts[0].address);
+      const poolTokenBalanceBefore = await poolToken.balanceOf(
+        accounts[0].address
+      );
 
       await curve.connect(accounts[0]).addLiquidity([hundredUsdc, 0], 0, {
         value: 100,
       });
       // gasUsed: 240k
 
-      const poolBalanceAfter = await poolToken.balanceOf(accounts[0].address);
+      const poolTokenBalanceAfter = await poolToken.balanceOf(
+        accounts[0].address
+      );
 
-      expect(poolBalanceAfter).to.be.gt(poolBalanceBefore);
+      expect(poolTokenBalanceAfter).to.be.gt(poolTokenBalanceBefore);
     });
 
     it("Adds liquidity only for EURS", async () => {
@@ -94,16 +98,20 @@ describe("Curve2Pool (USDC - EURS)", () => {
 
       await eurs.connect(accounts[0]).approve(curve.address, hundredEurs);
 
-      const poolBalanceBefore = await poolToken.balanceOf(accounts[0].address);
+      const poolTokenBalanceBefore = await poolToken.balanceOf(
+        accounts[0].address
+      );
 
       await curve.connect(accounts[0]).addLiquidity([0, hundredEurs], 0, {
         value: 100,
       });
       // gasUsed: 240k
 
-      const poolBalanceAfter = await poolToken.balanceOf(accounts[0].address);
+      const poolTokenBalanceAfter = await poolToken.balanceOf(
+        accounts[0].address
+      );
 
-      expect(poolBalanceAfter).to.be.gt(poolBalanceBefore);
+      expect(poolTokenBalanceAfter).to.be.gt(poolTokenBalanceBefore);
     });
   });
 
@@ -124,19 +132,23 @@ describe("Curve2Pool (USDC - EURS)", () => {
         });
       // gasUsed: 325k
 
-      const poolBalance = await poolToken.balanceOf(accounts[0].address);
+      const poolTokenBalance = await poolToken.balanceOf(accounts[0].address);
 
-      expect(poolBalance).to.be.gte(1n * 10n ** 18n);
+      expect(poolTokenBalance).to.be.gte(1n * 10n ** 18n);
 
-      await poolToken.connect(accounts[0]).approve(curve.address, poolBalance);
+      await poolToken
+        .connect(accounts[0])
+        .approve(curve.address, poolTokenBalance);
 
       const usdcBalanceBefore = await usdc.balanceOf(accounts[0].address);
       const eursBalanceBefore = await eurs.balanceOf(accounts[0].address);
 
-      await curve.connect(accounts[0]).removeLiquidity(poolBalance, [0, 0], {
-        value: 10000,
-        gasLimit: 2_000_000,
-      });
+      await curve
+        .connect(accounts[0])
+        .removeLiquidity(poolTokenBalance, [0, 0], {
+          value: 10000,
+          gasLimit: 2_000_000,
+        });
       // gasUsed: 201k
 
       const usdcBalanceAfter = await usdc.balanceOf(accounts[0].address);
@@ -161,17 +173,19 @@ describe("Curve2Pool (USDC - EURS)", () => {
           value: 100,
         });
 
-      const poolBalance = await poolToken.balanceOf(accounts[0].address);
+      const poolTokenBalance = await poolToken.balanceOf(accounts[0].address);
 
-      expect(poolBalance).to.be.gte(1n * 10n ** 18n);
+      expect(poolTokenBalance).to.be.gte(1n * 10n ** 18n);
 
-      await poolToken.connect(accounts[0]).approve(curve.address, poolBalance);
+      await poolToken
+        .connect(accounts[0])
+        .approve(curve.address, poolTokenBalance);
 
       const eursBalanceBefore = await eurs.balanceOf(accounts[0].address);
 
       await curve
         .connect(accounts[0])
-        .removeLiquidityOneCoin(poolBalance, 0, 0, {
+        .removeLiquidityOneCoin(poolTokenBalance, 0, 0, {
           value: 10000000,
           gasLimit: 5_000_000,
         });
