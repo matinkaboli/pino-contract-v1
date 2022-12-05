@@ -197,28 +197,24 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
 
       expect(poolBalance).to.be.gte(1n * 10n ** 18n);
 
-      console.log(poolBalance);
-
       await poolToken.connect(accounts[0]).approve(curve.address, poolBalance);
 
-      const dBalance0 = await dai.balanceOf(accounts[0].address);
-      const uBalance0 = await usdc.balanceOf(accounts[0].address);
+      const daiBalanceBefore = await dai.balanceOf(accounts[0].address);
+      const usdcBalanceBefore = await usdc.balanceOf(accounts[0].address);
 
-      const a = await curve
+      await curve
         .connect(accounts[0])
         .removeLiquidity(poolBalance, [1000, 100000, 0], {
           value: 10000,
           gasLimit: 5_000_000,
         });
-      const b = await a.wait();
-      console.log(b.gasUsed);
       // gasUsed: 209k
 
-      const dBalance1 = await dai.balanceOf(accounts[0].address);
-      const uBalance1 = await usdc.balanceOf(accounts[0].address);
+      const daiBalanceAfter = await dai.balanceOf(accounts[0].address);
+      const usdcBalanceAfter = await usdc.balanceOf(accounts[0].address);
 
-      expect(uBalance1).to.be.gt(uBalance0);
-      expect(dBalance1).to.be.gt(dBalance0);
+      expect(usdcBalanceAfter).to.be.gt(usdcBalanceBefore);
+      expect(daiBalanceAfter).to.be.gt(daiBalanceBefore);
     });
 
     it("Should add_liquidity for 2 tokens and remove_one_coin", async () => {
@@ -242,7 +238,7 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
 
       await poolToken.connect(accounts[0]).approve(curve.address, poolBalance);
 
-      const dBalance0 = await dai.balanceOf(accounts[0].address);
+      const daiBalanceBefore = await dai.balanceOf(accounts[0].address);
 
       await curve
         .connect(accounts[0])
@@ -252,15 +248,27 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
         });
       // gasUsed: 234k
 
-      const dBalance1 = await dai.balanceOf(accounts[0].address);
+      const daiBalanceAfter = await dai.balanceOf(accounts[0].address);
 
-      expect(dBalance1).to.be.gte(dBalance0);
+      expect(daiBalanceAfter).to.be.gte(daiBalanceBefore);
     });
   });
 
   describe("Admin actions", () => {
     it("Withdraws money", async () => {
       const curve = await loadFixture(deploy);
+
+      // Pay some ETH first
+      await usdc.connect(accounts[0]).approve(curve.address, 100);
+      await curve.addLiquidity([0, 100, 0], 0, {
+        value: 1n * 10n ** 18n,
+      });
+
+      const userBalanceBefore = await ethers.provider.getBalance(
+        accounts[0].address
+      );
+
+      await ethers.provider.getBalance(curve.address);
 
       await curve.connect(accounts[0]).withdrawAdmin();
 
@@ -269,6 +277,12 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
       );
 
       expect(balanceAfterWithdrawal).to.equal(0);
+
+      const userBalanceAfter = await ethers.provider.getBalance(
+        accounts[0].address
+      );
+
+      expect(userBalanceAfter).to.gt(userBalanceBefore);
     });
   });
 });

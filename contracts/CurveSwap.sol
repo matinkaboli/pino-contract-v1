@@ -15,10 +15,10 @@ interface ICurveSwap {
 
   function exchange_multiple(
     address[9] memory _route,
-    uint[3][4] memory _swap_params,
+    uint[][] memory _swap_params,
     uint _amount,
     uint _expected,
-    address[4] memory _pools,
+    address[] memory _pools,
     address _receiver
   ) external payable returns (uint);
 }
@@ -80,22 +80,24 @@ contract CurveSwap is Ownable {
   /// @return Received amount of the final output token
   function exchange_multiple(
     address[9] memory _route,
-    uint[3][4] memory _swap_params,
+    uint[][] memory _swap_params,
     uint _amount,
     uint _expected,
-    address[4] memory _pools
+    address[] memory _pools
   ) external payable returns (uint) {
     IERC20(_route[0]).safeTransferFrom(msg.sender, address(this), _amount);
 
-    if (!alreadyApprovedTokens[_route[0]][swapContract]) {
-      IERC20(_route[0]).approve(swapContract, type(uint).max);
+    IERC20(_route[0]).approve(swapContract, type(uint).max);
 
-      alreadyApprovedTokens[_route[0]][swapContract] = true;
-    }
+    // if (!alreadyApprovedTokens[_route[0]][swapContract]) {
+    //   IERC20(_route[0]).approve(swapContract, type(uint).max);
+    //
+    //   alreadyApprovedTokens[_route[0]][swapContract] = true;
+    // }
 
-    uint receivedAmount = ICurveSwap(swapContract).exchange_multiple(_route, _swap_params, _amount, _expected, _pools, msg.sender);
+    ICurveSwap(swapContract).exchange_multiple(_route, _swap_params, _amount, _expected, _pools, msg.sender);
 
-    return receivedAmount;
+    return 1;
   }
 
   /// @notice Withdraws fees and transfers them to owner

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.16;
 
-import "hardhat/console.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -85,8 +84,6 @@ contract Curve3Token is Ownable {
     if (balance2After > balance2Before) {
       IERC20(tokens[1]).transfer(msg.sender, balance2After - balance2Before);
     }
-
-    console.log("%s %s", balance2After, balance2Before);
 
     if (balance3After > balance3Before) {
       IERC20(tokens[2]).safeTransferFrom(address(this), msg.sender, balance3After - balance3Before);
