@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.16;
 
+import "hardhat/console.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -67,26 +68,30 @@ contract Curve3Token is Ownable {
   function removeLiquidity(uint liquidity, uint[3] memory minAmounts) public payable {
     IERC20(token).transferFrom(msg.sender, address(this), liquidity);
 
-    uint balance1Before = IERC20(tokens[0]).balanceOf(address(this));
-    uint balance2Before = IERC20(tokens[1]).balanceOf(address(this));
-    uint balance3Before = IERC20(tokens[2]).balanceOf(address(this));
+    uint balance0Before = IERC20(tokens[0]).balanceOf(address(this));
+    uint balance1Before = IERC20(tokens[1]).balanceOf(address(this));
+    uint balance2Before = IERC20(tokens[2]).balanceOf(address(this));
 
     Pool(pool).remove_liquidity(liquidity, minAmounts);
 
-    uint balance1After = IERC20(tokens[0]).balanceOf(address(this));
-    uint balance2After = IERC20(tokens[1]).balanceOf(address(this));
-    uint balance3After = IERC20(tokens[2]).balanceOf(address(this));
+    uint balance0After = IERC20(tokens[0]).balanceOf(address(this));
+    uint balance1After = IERC20(tokens[1]).balanceOf(address(this));
+    uint balance2After = IERC20(tokens[2]).balanceOf(address(this));
+
+    console.log("%s %s", balance0Before, balance0After);
+    console.log("%s %s", balance1Before, balance1After);
+    console.log("%s %s", balance2Before, balance2After);
+
+    if (balance0After > balance0Before) {
+      IERC20(tokens[0]).transfer(msg.sender, balance0After - balance0Before);
+    }
 
     if (balance1After > balance1Before) {
-      IERC20(tokens[0]).transfer(msg.sender, balance1After - balance1Before);
+      IERC20(tokens[1]).transfer(msg.sender, balance1After - balance1Before);
     }
 
     if (balance2After > balance2Before) {
-      IERC20(tokens[1]).transfer(msg.sender, balance2After - balance2Before);
-    }
-
-    if (balance3After > balance3Before) {
-      IERC20(tokens[2]).safeTransferFrom(address(this), msg.sender, balance3After - balance3Before);
+      IERC20(tokens[2]).transfer(msg.sender, balance2After - balance2Before);
     }
   }
 

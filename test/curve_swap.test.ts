@@ -5,9 +5,17 @@ import { expect } from "chai";
 import { IERC20 } from "../typechain-types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { Contract } from "ethers";
+
+const wethInterface = [
+  "function deposit() public payable",
+  "function balanceOf(address user) external view returns (uint)",
+  "function approve(address guy, uint wad) public returns (bool)",
+];
 
 const DAI = "0x6b175474e89094c44da98b954eedeac495271d0f";
 const SWAP = "0x55b916ce078ea594c10a874ba67ecc3d62e29822";
+const WETH = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
 const EURS = "0xdb25f211ab05b1c97d595516f45794528a807ad8"; // 2 decimal
 const USDC = "0xA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48";
 const USDT = "0xDAC17F958D2EE523A2206206994597C13D831EC7";
@@ -20,6 +28,7 @@ const amount = 1000n * 10n ** 6n; // $1000
 const daiAmount = 1000n * 10n ** 18n; // $1000
 
 describe("CurveSwap", () => {
+  let weth: Contract;
   let dai: IERC20;
   let eurs: IERC20;
   let usdc: IERC20;
@@ -51,6 +60,7 @@ describe("CurveSwap", () => {
     usdc = await ethers.getContractAt("IERC20", USDC);
     usdt = await ethers.getContractAt("IERC20", USDT);
     eurs = await ethers.getContractAt("IERC20", EURS);
+    weth = new ethers.Contract(WETH, wethInterface);
 
     accounts = await ethers.getSigners();
     const whale = await ethers.getSigner(WHALE);
@@ -60,17 +70,77 @@ describe("CurveSwap", () => {
     await usdt.connect(whale).transfer(accounts[0].address, amount);
     await dai.connect(whale).transfer(accounts[0].address, daiAmount);
     await eurs.connect(eursWhale).transfer(accounts[0].address, eursAmount);
+    await weth.connect(accounts[0]).deposit({
+      value: daiAmount,
+    });
 
     const usdcBalance = await usdc.balanceOf(accounts[0].address);
     const usdtBalance = await usdt.balanceOf(accounts[0].address);
     const daiBalance = await dai.balanceOf(accounts[0].address);
     const eursBalance = await eurs.balanceOf(accounts[0].address);
+    const wethBalance = await weth
+      .connect(accounts[0])
+      .balanceOf(accounts[0].address);
 
     expect(usdtBalance).to.equal(amount);
     expect(usdcBalance).to.equal(amount);
     expect(daiBalance).to.equal(daiAmount);
     expect(eursBalance).to.equal(eursAmount);
+    expect(wethBalance).to.equal(daiAmount);
   });
+
+  const exchangeWethForEURS = async () => {
+    const curve = await loadFixture(deploy);
+
+    const exchangeAmount = 1n * 10n ** 18n;
+    const minimumReceived = 1000n * 10n ** 2n;
+
+    await weth.connect(accounts[0]).approve(curve.address, exchangeAmount);
+
+    const routes = [
+      WETH,
+      "0xd51a44d3fae010294c616388b506acda1bfaae46", // tricrypto2
+      USDT,
+      "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7", // 3pool
+      USDC,
+      "0x98a7f18d4e56cfe84e3d081b40001b3d5bd3eb8b", // eursusd
+      EURS,
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+    ];
+
+    const swapParams = [
+      [2, 0, 3],
+      [2, 1, 1],
+      [0, 1, 3],
+      [0, 0, 0],
+    ];
+
+    const pools = [
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+      "0x0000000000000000000000000000000000000000",
+    ];
+
+    const eursBalanceBefore = await eurs.balanceOf(accounts[0].address);
+
+    await curve.exchange_multiple(
+      routes,
+      swapParams,
+      exchangeAmount,
+      0,
+      pools,
+      {
+        value: 1n * 10n ** 18n,
+      }
+    );
+    // gasUsed: 622k
+
+    const eursBalanceAfter = await eurs.balanceOf(accounts[0].address);
+
+    expect(eursBalanceAfter).to.be.gte(eursBalanceBefore.add(minimumReceived));
+  };
 
   describe("Exchange", () => {
     it("Should exchange USDC for DAI", async () => {
@@ -84,7 +154,7 @@ describe("CurveSwap", () => {
       await usdc.connect(accounts[0]).approve(curve.address, exchangeAmount);
 
       await curve.exchange(USDC, DAI, exchangeAmount, expectedMinimumReceived);
-      // gasUsed: 2001k
+      // gasUsed: 2.001m
 
       const daiBalanceAfter = await dai.balanceOf(accounts[0].address);
 
@@ -113,39 +183,120 @@ describe("CurveSwap", () => {
       );
     });
 
-    it("Should exchange EURS for DAI (using multiple_exchange)", async () => {
+    it("Should exchange DAI for USDC (using multiple_exchange)", async () => {
       const curve = await loadFixture(deploy);
 
-      const exchangeAmount = 100n * 10n ** 2n;
+      const minimumReceived = 90n * 10n ** 6n;
+      const exchangeAmount = 100n * 10n ** 18n;
 
-      await eurs.connect(accounts[0]).approve(curve.address, exchangeAmount);
+      await dai.connect(accounts[0]).approve(curve.address, exchangeAmount);
 
       const routes = [
-        EURS, // initial token
-        "0x98a7f18d4e56cfe84e3d081b40001b3d5bd3eb8b", // eursusd USDC-EURS pool
-        USDC, // USDC token
-        "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7", // 3pool DAI-USDC-USDT pool
-        DAI, // DAI token
-        "0x0000000000000000000000000000000000000000", // Finish
+        DAI, // initial token
+        "0xbEbc44782C7dB0a1A60Cb6fe97d0b483032FF1C7", // frax
+        USDC,
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
         "0x0000000000000000000000000000000000000000",
         "0x0000000000000000000000000000000000000000",
         "0x0000000000000000000000000000000000000000",
       ];
 
       const swapParams = [
-        [1, 0, 1],
-        [1, 0, 1],
-        // [0, 0, 0],
-        // [0, 0, 0],
+        [0, 1, 1],
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0],
       ];
 
-      await curve.exchange_multiple(routes, swapParams, exchangeAmount, 0, []);
+      const pools = [
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+      ];
+
+      const usdcBalanceBefore = await usdc.balanceOf(accounts[0].address);
+
+      await curve.exchange_multiple(
+        routes,
+        swapParams,
+        exchangeAmount,
+        minimumReceived,
+        pools
+      );
+      // gasUsed: 259k
+
+      const usdcBalanceAfter = await usdc.balanceOf(accounts[0].address);
+
+      expect(usdcBalanceAfter).to.be.gte(
+        usdcBalanceBefore.add(minimumReceived)
+      );
     });
+
+    it("Should exchange EURS for DAI (using multiple_exchange)", async () => {
+      const curve = await loadFixture(deploy);
+
+      const exchangeAmount = 100n * 10n ** 2n;
+      const minimumReceived = 90n * 10n ** 18n;
+
+      await eurs.connect(accounts[0]).approve(curve.address, exchangeAmount);
+
+      const routes = [
+        EURS,
+        "0x98a7f18d4e56cfe84e3d081b40001b3d5bd3eb8b", // eursusd
+        USDC,
+        "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7", // 3pool
+        DAI,
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+      ];
+
+      const swapParams = [
+        [1, 0, 3],
+        [1, 0, 1],
+        [0, 0, 0],
+        [0, 0, 0],
+      ];
+
+      const pools = [
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+      ];
+
+      const daiBalanceBefore = await dai.balanceOf(accounts[0].address);
+
+      await curve.exchange_multiple(
+        routes,
+        swapParams,
+        exchangeAmount,
+        0,
+        pools
+      );
+      // gasUsed: 622k
+
+      const daiBalanceAfter = await dai.balanceOf(accounts[0].address);
+
+      expect(daiBalanceAfter).to.be.gte(daiBalanceBefore.add(minimumReceived));
+    });
+
+    it(
+      "Should exchange WETH for EURS (using multiple_exchange)",
+      exchangeWethForEURS
+    );
   });
 
   describe("Admin actions", () => {
     it("Withdraws money", async () => {
       const curve = await loadFixture(deploy);
+
+      // Add some ETH to the contract first
+      await exchangeWethForEURS();
 
       const userBalanceBefore = await ethers.provider.getBalance(
         accounts[0].address
