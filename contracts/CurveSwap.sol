@@ -91,8 +91,9 @@ contract CurveSwap is Ownable {
     uint amount = _amount;
 
     if (_route[0] == ETH) {
-      amount = ethValue;
       ethValue = msg.value / 100000 * 99999;       
+
+      amount = ethValue;
     } else {
       IERC20(_route[0]).safeTransferFrom(msg.sender, address(this), _amount);
 
