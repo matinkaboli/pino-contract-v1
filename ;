@@ -95,7 +95,6 @@ contract CurveSwap is Ownable {
       ethValue = msg.value / 100000 * 99999;       
     } else {
       IERC20(_route[0]).safeTransferFrom(msg.sender, address(this), _amount);
-
       if (!alreadyApprovedTokens[_route[0]][swapContract]) {
         IERC20(_route[0]).safeApprove(swapContract, type(uint).max);
 
@@ -103,7 +102,10 @@ contract CurveSwap is Ownable {
       }
     }
 
-    ICurveSwap(swapContract).exchange_multiple{ value: ethValue }(_route, _swap_params, amount, _expected, _pools, msg.sender);
+    console.log("%s", msg.value);
+    console.log("%s", _amount);
+
+    ICurveSwap(swapContract).exchange_multiple{ value: ethValue }(_route, _swap_params, _amount, _expected, _pools, msg.sender);
 
     return 1;
   }

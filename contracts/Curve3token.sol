@@ -21,6 +21,7 @@ contract Curve3Token is Ownable {
   address[3] public tokens;
   address immutable public pool;
   address immutable public token;
+  address constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
   /// @notice Receives ERC20 tokens and Curve pool address and saves them
   /// @param _pool Address of Curve pool
