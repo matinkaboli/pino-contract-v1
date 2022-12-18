@@ -27,11 +27,10 @@ contract Curve3Token is Proxy {
   /// @param _minMintAmount Minimum liquidity expected to receive after adding liquidity
   function addLiquidity(uint256[3] memory _amounts, uint256 _minMintAmount, uint _fee) public payable {
     uint ethValue = 0;
-    uint[3] memory amounts = _amounts;
 
-    amounts[0] = calculateAndRetrieve(0, _amounts[0]);
-    amounts[1] = calculateAndRetrieve(1, _amounts[1]);
-    amounts[2] = calculateAndRetrieve(2, _amounts[2]);
+    calculateAndRetrieve(0, _amounts[0]);
+    calculateAndRetrieve(1, _amounts[1]);
+    calculateAndRetrieve(2, _amounts[2]);
 
     if (ethIndex != 100) {
       ethValue = msg.value - _fee;
@@ -39,7 +38,7 @@ contract Curve3Token is Proxy {
 
     uint balanceBefore = IERC20(token).balanceOf(address(this));
 
-    Pool(pool).add_liquidity{ value: ethValue }(amounts, _minMintAmount);
+    Pool(pool).add_liquidity{ value: ethValue }(_amounts, _minMintAmount);
 
     uint balanceAfter = IERC20(token).balanceOf(address(this));
 
