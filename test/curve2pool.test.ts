@@ -21,7 +21,7 @@ describe("Curve2Pool (USDC - EURS)", () => {
   let accounts: SignerWithAddress[];
 
   const deploy = async () => {
-    const Curve2Token = await ethers.getContractFactory("Curve2TokenU");
+    const Curve2Token = await ethers.getContractFactory("Curve2Token");
     const curve2Token = await Curve2Token.connect(accounts[0]).deploy(
       POOL,
       [USDC, EURS],
@@ -226,7 +226,7 @@ describe("Curve2Pool (USDC - EURS)", () => {
 
       await curve
         .connect(accounts[0])
-        .removeLiquidityOneCoin(poolTokenBalanceAfter, 0, 0, {
+        .removeLiquidityOneCoinU(poolTokenBalanceAfter, 0, 0, {
           value: 100000,
           gasLimit: 5_000_000,
         });

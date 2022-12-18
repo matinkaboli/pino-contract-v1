@@ -19,7 +19,7 @@ describe("Curve2Pool (ETH - sETH)", () => {
   let accounts: SignerWithAddress[];
 
   const deploy = async () => {
-    const Curve2Token = await ethers.getContractFactory("Curve2TokenI");
+    const Curve2Token = await ethers.getContractFactory("Curve2Token");
     const curve2Token = await Curve2Token.connect(accounts[0]).deploy(
       POOL,
       [ETH, SETH],
@@ -174,7 +174,7 @@ describe("Curve2Pool (ETH - sETH)", () => {
 
       const sethBalanceBefore = await seth.balanceOf(accounts[0].address);
 
-      await curve.removeLiquidityOneCoin(poolTokenBalanceAfter, 1, 0, {
+      await curve.removeLiquidityOneCoinI(poolTokenBalanceAfter, 1, 0, {
         gasLimit: 3000000,
       });
       // gasUsed: 265k
@@ -218,7 +218,7 @@ describe("Curve2Pool (ETH - sETH)", () => {
         accounts[0].address
       );
 
-      await curve.removeLiquidityOneCoin(poolTokenBalanceAfter, 0, 0, {
+      await curve.removeLiquidityOneCoinI(poolTokenBalanceAfter, 0, 0, {
         gasLimit: 3000000,
       });
       // gasUsed: 126k

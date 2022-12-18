@@ -22,7 +22,7 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
   let accounts: SignerWithAddress[];
 
   const deploy = async () => {
-    const Curve3Token = await ethers.getContractFactory("Curve3TokenI");
+    const Curve3Token = await ethers.getContractFactory("Curve3Token");
     const curve3Token = await Curve3Token.connect(accounts[0]).deploy(
       POOL,
       [DAI, USDC, USDT],
@@ -309,7 +309,7 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
 
       await curve
         .connect(accounts[0])
-        .removeLiquidityOneCoin(poolBalance, 0, 0, {
+        .removeLiquidityOneCoinI(poolBalance, 0, 0, {
           value: 10000000,
           gasLimit: 5_000_000,
         });
