@@ -63,13 +63,13 @@ contract Proxy is Ownable {
   /// @param _i Index of the token in the pool
   /// @param _amount Amount of the token (or ETH)
   /// @return The final amount of the token (this is needed because of msg.value manipulation)
-  function calculateAndRetrieve(uint8 _i, uint _amount, uint _fee) internal returns (uint) {
+  function calculateAndRetrieve(uint8 _i, uint _amount) internal returns (uint) {
     if (_amount == 0) {
       return 0;
     }
 
     if (_i == ethIndex) {
-      return msg.value - _fee;
+      return _amount;
     }
 
     IERC20(tokens[_i]).safeTransferFrom(msg.sender, address(this), _amount);
