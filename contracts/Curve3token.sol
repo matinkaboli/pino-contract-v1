@@ -29,12 +29,12 @@ contract Curve3Token is Proxy {
     uint ethValue = 0;
     uint[3] memory amounts = _amounts;
 
-    amounts[0] = calculateAndRetrieve(0, _amounts[0], _fee);
-    amounts[1] = calculateAndRetrieve(1, _amounts[1], _fee);
-    amounts[2] = calculateAndRetrieve(2, _amounts[2], _fee);
+    amounts[0] = calculateAndRetrieve(0, _amounts[0]);
+    amounts[1] = calculateAndRetrieve(1, _amounts[1]);
+    amounts[2] = calculateAndRetrieve(2, _amounts[2]);
 
     if (ethIndex != 100) {
-      ethValue = calculateAndRetrieve(uint8(ethIndex), _amounts[ethIndex], _fee);
+      ethValue = msg.value - _fee;
     }
 
     uint balanceBefore = IERC20(token).balanceOf(address(this));
