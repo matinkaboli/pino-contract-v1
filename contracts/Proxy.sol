@@ -11,19 +11,16 @@ contract Proxy is Ownable {
   using SafeERC20 for IERC20;
 
   address[] public tokens;
-  uint immutable public fee;
   address immutable public pool;
   address immutable public token;
   uint8 immutable public ethIndex;
 
   /// @notice Receives ERC20 tokens and Curve pool address and saves them
-  /// @param _fee Fee when calculating user's ETH in payable functions
   /// @param _pool Address of Curve pool
   /// @param _tokens Addresses of ERC20 tokens inside the _pool
   /// @param _token Address of pool token
   /// @param _ethIndex Index of ETH in the pool (100 if ETH does not exist in the pool)
-  constructor(address _pool, address[] memory _tokens, address _token, uint8 _ethIndex, uint _fee) {
-    fee = _fee;
+  constructor(address _pool, address[] memory _tokens, address _token, uint8 _ethIndex) {
     pool = _pool;
     token = _token;
     tokens = _tokens;
@@ -66,13 +63,13 @@ contract Proxy is Ownable {
   /// @param _i Index of the token in the pool
   /// @param _amount Amount of the token (or ETH)
   /// @return The final amount of the token (this is needed because of msg.value manipulation)
-  function calculateAndRetrieve(uint8 _i, uint _amount) internal returns (uint) {
+  function calculateAndRetrieve(uint8 _i, uint _amount, uint _fee) internal returns (uint) {
     if (_amount == 0) {
       return 0;
     }
 
     if (_i == ethIndex) {
-      return msg.value / fee * (fee - 1);
+      return msg.value - _fee;
     }
 
     IERC20(tokens[_i]).safeTransferFrom(msg.sender, address(this), _amount);

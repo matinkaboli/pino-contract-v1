@@ -6,12 +6,7 @@ import { IERC20 } from "../typechain-types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { Contract } from "ethers";
-
-const wethInterface = [
-  "function deposit() public payable",
-  "function balanceOf(address user) external view returns (uint)",
-  "function approve(address guy, uint wad) public returns (bool)",
-];
+import wethInterface from "./interfaces/weth.json";
 
 const ETH = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 const DAI = "0x6b175474e89094c44da98b954eedeac495271d0f";

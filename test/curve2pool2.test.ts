@@ -1,12 +1,10 @@
-// Curve2pool2
+// Curve2pool
 import hardhat from "hardhat";
 import { ethers } from "hardhat";
 import { expect } from "chai";
 import { IERC20 } from "../typechain-types";
-import wethInterface from "./interfaces/weth.json";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { Contract } from "ethers";
 
 // Using (ETH - sETH)
 const ETH = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
@@ -21,13 +19,12 @@ describe("Curve2Pool (ETH - sETH)", () => {
   let accounts: SignerWithAddress[];
 
   const deploy = async () => {
-    const Curve2Token = await ethers.getContractFactory("Curve2Token2");
+    const Curve2Token = await ethers.getContractFactory("Curve2TokenI");
     const curve2Token = await Curve2Token.connect(accounts[0]).deploy(
       POOL,
       [ETH, SETH],
       POOL_TOKEN,
       0,
-      10000,
       {
         gasLimit: 5_000_000,
       }
@@ -61,6 +58,7 @@ describe("Curve2Pool (ETH - sETH)", () => {
     it("Should add SETH as liquidity", async () => {
       const curve = await loadFixture(deploy);
 
+      const fee = 300000;
       const amount = 10n * 10n ** 18n;
       const minAmount = 8n * 10n ** 18n;
 
@@ -72,7 +70,9 @@ describe("Curve2Pool (ETH - sETH)", () => {
         accounts[0].address
       );
 
-      await curve.addLiquidity(amounts, minAmount);
+      await curve.addLiquidity(amounts, minAmount, fee, {
+        value: fee,
+      });
       // gasUsed: 292k
 
       const poolTokenBalanceAfter = await poolToken.balanceOf(
@@ -87,6 +87,7 @@ describe("Curve2Pool (ETH - sETH)", () => {
     it("Should add ETH as liquidity", async () => {
       const curve = await loadFixture(deploy);
 
+      const fee = 20000n;
       const amount = 10n * 10n ** 18n;
       const minAmount = 8n * 10n ** 18n;
 
@@ -96,8 +97,8 @@ describe("Curve2Pool (ETH - sETH)", () => {
         accounts[0].address
       );
 
-      await curve.addLiquidity(amounts, minAmount, {
-        value: amount,
+      await curve.addLiquidity(amounts, minAmount, fee, {
+        value: amount + fee,
       });
       // gasUed: 139k
 
@@ -113,6 +114,7 @@ describe("Curve2Pool (ETH - sETH)", () => {
     it("Should add ETH & sETH as liquidity", async () => {
       const curve = await loadFixture(deploy);
 
+      const fee = 350000n;
       const amount = 10n * 10n ** 18n;
       const minAmount = 16n * 10n ** 18n;
 
@@ -124,8 +126,8 @@ describe("Curve2Pool (ETH - sETH)", () => {
 
       await seth.connect(accounts[0]).approve(curve.address, amount);
 
-      await curve.addLiquidity(amounts, minAmount, {
-        value: amount,
+      await curve.addLiquidity(amounts, minAmount, fee, {
+        value: amount + fee,
       });
       // gasUed: 299k
 
@@ -143,6 +145,7 @@ describe("Curve2Pool (ETH - sETH)", () => {
     it("Should add_liquidity for SETH and remove_one_coin", async () => {
       const curve = await loadFixture(deploy);
 
+      const fee = 0n;
       const amount = 10n * 10n ** 18n;
       const minAmount = 8n * 10n ** 18n;
 
@@ -154,7 +157,7 @@ describe("Curve2Pool (ETH - sETH)", () => {
         accounts[0].address
       );
 
-      await curve.addLiquidity(amounts, minAmount);
+      await curve.addLiquidity(amounts, minAmount, fee);
       // gasUsed: 292k
 
       const poolTokenBalanceAfter = await poolToken.balanceOf(
@@ -174,6 +177,7 @@ describe("Curve2Pool (ETH - sETH)", () => {
       await curve.removeLiquidityOneCoin(poolTokenBalanceAfter, 1, 0, {
         gasLimit: 3000000,
       });
+      // gasUsed: 265k
 
       const sethBalanceAfter = await seth.balanceOf(accounts[0].address);
 
@@ -183,6 +187,7 @@ describe("Curve2Pool (ETH - sETH)", () => {
     it("Should add_liquidity for ETH token and remove_one_coin", async () => {
       const curve = await loadFixture(deploy);
 
+      const fee = 300000n;
       const amount = 10n * 10n ** 18n;
       const minAmount = 8n * 10n ** 18n;
 
@@ -192,8 +197,8 @@ describe("Curve2Pool (ETH - sETH)", () => {
         accounts[0].address
       );
 
-      await curve.addLiquidity(amounts, minAmount, {
-        value: amount,
+      await curve.addLiquidity(amounts, minAmount, fee, {
+        value: amount + fee,
       });
       // gasUsed: 140k
 
@@ -216,6 +221,7 @@ describe("Curve2Pool (ETH - sETH)", () => {
       await curve.removeLiquidityOneCoin(poolTokenBalanceAfter, 0, 0, {
         gasLimit: 3000000,
       });
+      // gasUsed: 126k
 
       const ethBalanceAfter = await ethers.provider.getBalance(
         accounts[0].address
@@ -227,6 +233,7 @@ describe("Curve2Pool (ETH - sETH)", () => {
     it("Should add_liquidity for 2 tokens and remove_liquidity", async () => {
       const curve = await loadFixture(deploy);
 
+      const fee = 3000n;
       const amount = 10n * 10n ** 18n;
       const minAmount = 0;
       // const minAmount = 16n * 10n ** 18n;
@@ -239,8 +246,8 @@ describe("Curve2Pool (ETH - sETH)", () => {
 
       await seth.connect(accounts[0]).approve(curve.address, amount);
 
-      await curve.addLiquidity(amounts, minAmount, {
-        value: amount,
+      await curve.addLiquidity(amounts, minAmount, fee, {
+        value: amount + fee,
       });
       // gasUed: 298k
 
@@ -263,6 +270,7 @@ describe("Curve2Pool (ETH - sETH)", () => {
         .approve(curve.address, removeLiquidityAmount);
 
       await curve.removeLiquidity(removeLiquidityAmount, [0, minAmount]);
+      // gasUsed: 256k
 
       const sethBalanceAfter = await seth.balanceOf(accounts[0].address);
 
@@ -276,8 +284,7 @@ describe("Curve2Pool (ETH - sETH)", () => {
 
       const amount = 10n * 10n ** 18n;
 
-      // const signer = ethers.provider.getSigner(accounts[0]);
-      const transaction = await accounts[0].sendTransaction({
+      await accounts[0].sendTransaction({
         to: curve.address,
         value: amount,
       });
