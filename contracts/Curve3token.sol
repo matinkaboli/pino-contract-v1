@@ -8,8 +8,8 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 interface Pool {
   function add_liquidity(uint[3] memory amounts, uint min_mint_amount) external payable;
   function remove_liquidity(uint _amount, uint[3] memory min_amounts) external;
-  function remove_liquidity_one_coin(uint _token_amount, uint i, uint _min_amount) external returns (uint);
-  function remove_liquidity_one_coin(uint _token_amount, int128 i, uint _min_amount) external returns (uint);
+  function remove_liquidity_one_coin(uint _token_amount, uint _i, uint _min_amount) external returns (uint);
+  function remove_liquidity_one_coin(uint _token_amount, int128 _i, uint _min_amount) external returns (uint);
 }
 
 /// @title Curve proxy contract 
@@ -28,9 +28,9 @@ contract Curve3Token is Proxy {
   function addLiquidity(uint256[3] memory _amounts, uint256 _minMintAmount, uint _fee) public payable {
     uint ethValue = 0;
 
-    calculateAndRetrieve(0, _amounts[0]);
-    calculateAndRetrieve(1, _amounts[1]);
-    calculateAndRetrieve(2, _amounts[2]);
+    retrieveToken(0, _amounts[0]);
+    retrieveToken(1, _amounts[1]);
+    retrieveToken(2, _amounts[2]);
 
     if (ethIndex != 100) {
       ethValue = msg.value - _fee;
@@ -61,15 +61,9 @@ contract Curve3Token is Proxy {
     uint balance1After = getBalance(1);
     uint balance2After = getBalance(2);
 
-    if (balance0After > balance0Before) {
-      send(0, balance0After - balance0Before);
-    }
-    if (balance1After > balance1Before) {
-      send(1, balance1After - balance1Before);
-    }
-    if (balance2After > balance2Before) {
-      send(2, balance2After - balance2Before);
-    }
+    send(0, balance0After - balance0Before);
+    send(1, balance1After - balance1Before);
+    send(2, balance2After - balance2Before);
   }
 
   /// @notice Removes liquidity and received only 1 token in return
@@ -78,7 +72,7 @@ contract Curve3Token is Proxy {
   /// @param _i Index of receiving token in the pool
   /// @param min_amount Minimum amount expected to receive from token[i]
   function removeLiquidityOneCoinI(uint _amount, int128 _i, uint min_amount) public payable {
-    uint8 i = 0;
+    uint i = 0;
     if (_i == 1) {
       i = 1;
     } else if (_i == 2) {
@@ -101,22 +95,15 @@ contract Curve3Token is Proxy {
   /// @param _amount Amount of LP token to burn
   /// @param _i Index of receiving token in the pool
   /// @param min_amount Minimum amount expected to receive from token[i]
-  function removeLiquidityOneCoinU(uint _amount, int128 _i, uint min_amount) public payable {
-    uint8 i = 0;
-    if (_i == 1) {
-      i = 1;
-    } else if (_i == 2) {
-      i = 2;
-    }
-
+  function removeLiquidityOneCoinU(uint _amount, uint _i, uint min_amount) public payable {
     IERC20(token).safeTransferFrom(msg.sender, address(this), _amount);
 
-    uint balanceBefore = getBalance(i);
+    uint balanceBefore = getBalance(_i);
 
     Pool(pool).remove_liquidity_one_coin(_amount, _i, min_amount);
 
-    uint balanceAfter = getBalance(i);
+    uint balanceAfter = getBalance(_i);
 
-    send(i, balanceAfter - balanceBefore);
+    send(_i, balanceAfter - balanceBefore);
   }
 }

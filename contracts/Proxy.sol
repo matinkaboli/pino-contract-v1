@@ -38,7 +38,7 @@ contract Proxy is Ownable {
   /// @notice Returns the balance of the token (or ETH) of this contract
   /// @param _i Index of the token in the pool
   /// @return The amount of ERC20 or ETH
-  function getBalance(uint8 _i) internal view returns (uint) {
+  function getBalance(uint _i) internal view returns (uint) {
     if (ethIndex == _i) {
       return address(this).balance;
     } 
@@ -49,20 +49,20 @@ contract Proxy is Ownable {
   /// @notice Sends ERC20 token or ETH from this contract
   /// @param _i Index of the sending token from the pool
   /// @param _amount Amount of the sending token
-  function send(uint8 _i, uint _amount) internal {
+  function send(uint _i, uint _amount) internal {
     if (ethIndex == _i) {
       (bool sent,) = payable(msg.sender).call{ value: _amount }("");
 
       require(sent, "Failed to send Ether");
     } else {
-      IERC20(tokens[_i]).transfer(msg.sender, _amount);
+      IERC20(tokens[_i]).safeTransfer(msg.sender, _amount);
     }
   }
 
   /// @notice Calculates msg.value (takes the fee) and retrieves ERC20 tokens (transferFrom)
   /// @param _i Index of the token in the pool
   /// @param _amount Amount of the token (or ETH)
-  function calculateAndRetrieve(uint8 _i, uint _amount) internal {
+  function retrieveToken(uint _i, uint _amount) internal {
     if (_i != ethIndex) {
       IERC20(tokens[_i]).safeTransferFrom(msg.sender, address(this), _amount);
     }

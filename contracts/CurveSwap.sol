@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.16;
 
-import "hardhat/console.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -79,21 +78,20 @@ contract CurveSwap is Ownable {
   /// @param _expected The minimum amount received after the final swap.
   /// @param _pools Array of pools for swaps via zap contracts. This parameter is only needed for
   /// Polygon meta-factories underlying swaps.
-  /// @return Received amount of the final output token
+  /// @param _fee Fee of the proxy
   function exchange_multiple(
     address[9] memory _route,
     uint[3][4] memory _swap_params,
     uint _amount,
     uint _expected,
-    address[4] memory _pools
-  ) external payable returns (uint) {
+    address[4] memory _pools,
+    uint _fee
+  ) external payable {
     uint ethValue = 0;
     uint amount = _amount;
 
     if (_route[0] == ETH) {
-      ethValue = msg.value / 100000 * 99999;       
-
-      amount = ethValue;
+      ethValue = msg.value - _fee;       
     } else {
       IERC20(_route[0]).safeTransferFrom(msg.sender, address(this), _amount);
 
@@ -105,8 +103,6 @@ contract CurveSwap is Ownable {
     }
 
     ICurveSwap(swapContract).exchange_multiple{ value: ethValue }(_route, _swap_params, amount, _expected, _pools, msg.sender);
-
-    return 1;
   }
 
   /// @notice Withdraws fees and transfers them to owner
@@ -115,4 +111,6 @@ contract CurveSwap is Ownable {
 
     payable(owner()).transfer(address(this).balance);
   }
+
+  receive() external payable {}
 }

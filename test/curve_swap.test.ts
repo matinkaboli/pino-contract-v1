@@ -142,7 +142,7 @@ describe("CurveSwap", () => {
   };
 
   describe("Exchange", () => {
-    it.skip("Should exchange USDC for DAI", async () => {
+    it("Should exchange USDC for DAI", async () => {
       const curve = await loadFixture(deploy);
 
       const exchangeAmount = 50n * 10n ** 6n;
@@ -162,7 +162,7 @@ describe("CurveSwap", () => {
       );
     });
 
-    it.skip("Should exchange DAI for USDC", async () => {
+    it("Should exchange DAI for USDC", async () => {
       const curve = await loadFixture(deploy);
 
       const exchangeAmount = 50n * 10n ** 18n;
@@ -182,7 +182,7 @@ describe("CurveSwap", () => {
       );
     });
 
-    it.skip("Should exchange DAI for USDC (using multiple_exchange)", async () => {
+    it("Should exchange DAI for USDC (using multiple_exchange)", async () => {
       const curve = await loadFixture(deploy);
 
       const minimumReceived = 90n * 10n ** 6n;
@@ -234,7 +234,7 @@ describe("CurveSwap", () => {
       );
     });
 
-    it.skip("Should exchange EURS for DAI (using multiple_exchange)", async () => {
+    it("Should exchange EURS for DAI (using multiple_exchange)", async () => {
       const curve = await loadFixture(deploy);
 
       const exchangeAmount = 100n * 10n ** 2n;
@@ -284,7 +284,7 @@ describe("CurveSwap", () => {
       expect(daiBalanceAfter).to.be.gte(daiBalanceBefore.add(minimumReceived));
     });
 
-    it.skip(
+    it(
       "Should exchange WETH for EURS (using multiple_exchange)",
       exchangeWethForEURS
     );
@@ -323,7 +323,7 @@ describe("CurveSwap", () => {
 
       const fraxBalanceBefore = await frax.balanceOf(accounts[0].address);
 
-      const a = await curve
+      await curve
         .connect(accounts[0])
         .exchange_multiple(
           routes,
@@ -335,8 +335,6 @@ describe("CurveSwap", () => {
             value: exchangeAmount,
           }
         );
-      const b = await a.wait();
-      console.log(b.gasUsed);
       // gasUsed: 622k
 
       const fraxBalanceAfter = await frax.balanceOf(accounts[0].address);
@@ -347,30 +345,28 @@ describe("CurveSwap", () => {
     });
   });
 
-  describe("Admin actions", () => {
-    it.skip("Withdraws money", async () => {
+  describe("Admin", () => {
+    it("Should withdraw money", async () => {
       const curve = await loadFixture(deploy);
 
-      // Add some ETH to the contract first
-      await exchangeWethForEURS();
+      const amount = 10n * 10n ** 18n;
 
-      const userBalanceBefore = await ethers.provider.getBalance(
+      await accounts[0].sendTransaction({
+        to: curve.address,
+        value: amount,
+      });
+
+      const balanceBefore = await ethers.provider.getBalance(
         accounts[0].address
       );
 
-      await curve.connect(accounts[0]).withdrawAdmin();
+      await curve.withdrawAdmin();
 
-      const balanceAfterWithdrawal = await ethers.provider.getBalance(
-        curve.address
-      );
-
-      expect(balanceAfterWithdrawal).to.equal(0);
-
-      const userBalanceAfter = await ethers.provider.getBalance(
+      const balanceAfter = await ethers.provider.getBalance(
         accounts[0].address
       );
 
-      expect(userBalanceAfter).to.gt(userBalanceBefore);
+      expect(balanceAfter).to.gt(balanceBefore);
     });
   });
 });
