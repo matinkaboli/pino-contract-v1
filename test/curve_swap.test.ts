@@ -88,100 +88,7 @@ describe("CurveSwap", () => {
     expect(wethBalance).to.gte(daiAmount);
   });
 
-  const exchangeWethForEURS = async () => {
-    const curve = await loadFixture(deploy);
-
-    const exchangeAmount = 1n * 10n ** 18n;
-    const minimumReceived = 1000n * 10n ** 2n;
-
-    await weth.connect(accounts[0]).approve(curve.address, exchangeAmount);
-
-    const routes = [
-      WETH,
-      "0xd51a44d3fae010294c616388b506acda1bfaae46", // tricrypto2
-      USDT,
-      "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7", // 3pool
-      USDC,
-      "0x98a7f18d4e56cfe84e3d081b40001b3d5bd3eb8b", // eursusd
-      EURS,
-      "0x0000000000000000000000000000000000000000",
-      "0x0000000000000000000000000000000000000000",
-    ];
-
-    const swapParams = [
-      [2, 0, 3],
-      [2, 1, 1],
-      [0, 1, 3],
-      [0, 0, 0],
-    ];
-
-    const pools = [
-      "0x0000000000000000000000000000000000000000",
-      "0x0000000000000000000000000000000000000000",
-      "0x0000000000000000000000000000000000000000",
-      "0x0000000000000000000000000000000000000000",
-    ];
-
-    const eursBalanceBefore = await eurs.balanceOf(accounts[0].address);
-
-    await curve.exchange_multiple(
-      routes,
-      swapParams,
-      exchangeAmount,
-      0,
-      pools,
-      {
-        value: 1n * 10n ** 18n,
-      }
-    );
-    // gasUsed: 622k
-
-    const eursBalanceAfter = await eurs.balanceOf(accounts[0].address);
-
-    expect(eursBalanceAfter).to.be.gte(eursBalanceBefore.add(minimumReceived));
-  };
-
   describe("Exchange", () => {
-    it("Should exchange USDC for DAI", async () => {
-      const curve = await loadFixture(deploy);
-
-      const exchangeAmount = 50n * 10n ** 6n;
-      const expectedMinimumReceived = 47n * 10n ** 18n;
-
-      const daiBalanceBefore = await dai.balanceOf(accounts[0].address);
-
-      await usdc.connect(accounts[0]).approve(curve.address, exchangeAmount);
-
-      await curve.exchange(USDC, DAI, exchangeAmount, expectedMinimumReceived);
-      // gasUsed: 2.001m
-
-      const daiBalanceAfter = await dai.balanceOf(accounts[0].address);
-
-      expect(daiBalanceAfter).to.be.gte(
-        daiBalanceBefore.add(expectedMinimumReceived)
-      );
-    });
-
-    it("Should exchange DAI for USDC", async () => {
-      const curve = await loadFixture(deploy);
-
-      const exchangeAmount = 50n * 10n ** 18n;
-      const expectedMinimumReceived = 45n * 10n ** 6n;
-
-      await dai.connect(accounts[0]).approve(curve.address, exchangeAmount);
-
-      const usdcBalanceBefore = await usdc.balanceOf(accounts[0].address);
-
-      await curve.exchange(DAI, USDC, exchangeAmount, 0);
-      // gasUsed: 2307781
-
-      const usdcBalanceAfter = await usdc.balanceOf(accounts[0].address);
-
-      expect(usdcBalanceAfter).to.be.gte(
-        usdcBalanceBefore.add(expectedMinimumReceived)
-      );
-    });
-
     it("Should exchange DAI for USDC (using multiple_exchange)", async () => {
       const curve = await loadFixture(deploy);
 
@@ -223,7 +130,8 @@ describe("CurveSwap", () => {
         swapParams,
         exchangeAmount,
         minimumReceived,
-        pools
+        pools,
+        0
       );
       // gasUsed: 259k
 
@@ -275,7 +183,8 @@ describe("CurveSwap", () => {
         swapParams,
         exchangeAmount,
         0,
-        pools
+        pools,
+        0
       );
       // gasUsed: 622k
 
@@ -284,19 +193,73 @@ describe("CurveSwap", () => {
       expect(daiBalanceAfter).to.be.gte(daiBalanceBefore.add(minimumReceived));
     });
 
-    it(
-      "Should exchange WETH for EURS (using multiple_exchange)",
-      exchangeWethForEURS
-    );
+    it("Should exchange WETH for EURS (using multiple_exchange)", async () => {
+      const curve = await loadFixture(deploy);
+
+      const fee = 100n;
+      const exchangeAmount = 1n * 10n ** 18n;
+      const minimumReceived = 1000n * 10n ** 2n;
+
+      await weth.connect(accounts[0]).approve(curve.address, exchangeAmount);
+
+      const routes = [
+        WETH,
+        "0xd51a44d3fae010294c616388b506acda1bfaae46", // tricrypto2
+        USDT,
+        "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7", // 3pool
+        USDC,
+        "0x98a7f18d4e56cfe84e3d081b40001b3d5bd3eb8b", // eursusd
+        EURS,
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+      ];
+
+      const swapParams = [
+        [2, 0, 3],
+        [2, 1, 1],
+        [0, 1, 3],
+        [0, 0, 0],
+      ];
+
+      const pools = [
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+      ];
+
+      const eursBalanceBefore = await eurs.balanceOf(accounts[0].address);
+
+      await curve.exchange_multiple(
+        routes,
+        swapParams,
+        exchangeAmount,
+        0,
+        pools,
+        fee,
+        {
+          value: exchangeAmount + fee,
+        }
+      );
+      // gasUsed: 622k
+
+      const eursBalanceAfter = await eurs.balanceOf(accounts[0].address);
+
+      expect(eursBalanceAfter).to.be.gte(
+        eursBalanceBefore.add(minimumReceived)
+      );
+    });
 
     it("Should exchange ETH for FRAX (using multiple_exchange)", async () => {
       const curve = await loadFixture(deploy);
 
+      const fee = 1000n;
       const exchangeAmount = 5n * 10n ** 18n;
       const minimumReceived = 6000n * 10n * 18n;
 
       const routes = [
         ETH,
+        WETH,
         "0xd51a44d3fae010294c616388b506acda1bfaae46", // tricrypto2
         USDT,
         "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7", // 3pool
@@ -304,7 +267,7 @@ describe("CurveSwap", () => {
         "0xdcef968d416a41cdac0ed8702fac8128a64241a2", // fraxusdc
         FRAX,
         "0x0000000000000000000000000000000000000000",
-        "0x0000000000000000000000000000000000000000",
+        // "0x0000000000000000000000000000000000000000",
       ];
 
       const swapParams = [
@@ -331,8 +294,9 @@ describe("CurveSwap", () => {
           exchangeAmount,
           minimumReceived,
           pools,
+          fee,
           {
-            value: exchangeAmount,
+            value: exchangeAmount + fee,
           }
         );
       // gasUsed: 622k

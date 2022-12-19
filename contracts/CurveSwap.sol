@@ -5,14 +5,6 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface ICurveSwap {
-  function exchange_with_best_rate(
-    address _from,
-    address _to,
-    uint _amount,
-    uint _expected,
-    address _receiver
-  ) external payable returns (uint);
-
   function exchange_multiple(
     address[9] memory _route,
     uint[3][4] memory _swap_params,
@@ -37,26 +29,6 @@ contract CurveSwap is Ownable {
   /// @param _swapContract Swap contract address
   constructor(address _swapContract) {
     swapContract = _swapContract;
-  }
-
-  /// @notice Exchanges 2 tokens using different pools
-  /// @param from The sending IERC20 token 
-  /// @param to The receiving IERC20 token 
-  /// @param amount The amount of sending token
-  /// @param expected The expected amount of receiving token (minimum amount)
-  /// @return uint Amount received
-  function exchange(address from, address to, uint amount, uint expected) external payable returns (uint) {
-    IERC20(from).safeTransferFrom(msg.sender, address(this), amount);
-  
-    if (!alreadyApprovedTokens[from][swapContract]) {
-      IERC20(from).approve(swapContract, type(uint).max);
-
-      alreadyApprovedTokens[from][swapContract] = true;
-    }
-
-    uint swapped = ICurveSwap(swapContract).exchange_with_best_rate(from, to, amount, expected, msg.sender);
-
-    return swapped;
   }
 
   /// @notice Perform up to four swaps in a single transaction
@@ -88,7 +60,6 @@ contract CurveSwap is Ownable {
     uint _fee
   ) external payable {
     uint ethValue = 0;
-    uint amount = _amount;
 
     if (_route[0] == ETH) {
       ethValue = msg.value - _fee;       
@@ -102,7 +73,7 @@ contract CurveSwap is Ownable {
       }
     }
 
-    ICurveSwap(swapContract).exchange_multiple{ value: ethValue }(_route, _swap_params, amount, _expected, _pools, msg.sender);
+    ICurveSwap(swapContract).exchange_multiple{ value: ethValue }(_route, _swap_params, _amount, _expected, _pools, msg.sender);
   }
 
   /// @notice Withdraws fees and transfers them to owner
