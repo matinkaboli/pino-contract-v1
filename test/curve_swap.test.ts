@@ -263,22 +263,20 @@ describe("CurveSwap", () => {
       const routes = [
         ETH,
         "0xd51a44d3fae010294c616388b506acda1bfaae46", // tricrypto2
-        WETH,
-        "0xd51a44d3fae010294c616388b506acda1bfaae46", // tricrypto2
         USDT,
         "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7", // 3pool
         USDC,
         "0xdcef968d416a41cdac0ed8702fac8128a64241a2", // fraxusdc
         FRAX,
-        // "0x0000000000000000000000000000000000000000",
-        // "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
       ];
 
       const swapParams = [
-        [2, 2, 2],
         [2, 0, 3],
         [2, 1, 1],
         [1, 0, 1],
+        [0, 0, 0],
       ];
 
       const pools = [
