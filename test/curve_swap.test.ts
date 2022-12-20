@@ -16,6 +16,7 @@ const WETH = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
 const EURS = "0xdb25f211ab05b1c97d595516f45794528a807ad8"; // 2 decimal
 const USDC = "0xA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48";
 const USDT = "0xDAC17F958D2EE523A2206206994597C13D831EC7";
+const REN_BTC = "0xEB4C2781e4ebA804CE9a9803C67d0893436bB27D";
 
 const WHALE = "0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8";
 const EURS_WHALE = "0xe5379345675132653bd303030c6e456034ed1961";
@@ -31,6 +32,7 @@ describe("CurveSwap", () => {
   let usdc: IERC20;
   let usdt: IERC20;
   let frax: IERC20;
+  let renBtc: IERC20;
   let accounts: SignerWithAddress[];
 
   const deploy = async () => {
@@ -59,6 +61,7 @@ describe("CurveSwap", () => {
     usdt = await ethers.getContractAt("IERC20", USDT);
     eurs = await ethers.getContractAt("IERC20", EURS);
     frax = await ethers.getContractAt("IERC20", FRAX);
+    renBtc = await ethers.getContractAt("IERC20", REN_BTC);
     weth = new ethers.Contract(WETH, wethInterface);
 
     accounts = await ethers.getSigners();
@@ -259,22 +262,23 @@ describe("CurveSwap", () => {
 
       const routes = [
         ETH,
+        "0xd51a44d3fae010294c616388b506acda1bfaae46", // tricrypto2
         WETH,
         "0xd51a44d3fae010294c616388b506acda1bfaae46", // tricrypto2
         USDT,
         "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7", // 3pool
-        DAI,
+        USDC,
         "0xdcef968d416a41cdac0ed8702fac8128a64241a2", // fraxusdc
         FRAX,
-        "0x0000000000000000000000000000000000000000",
+        // "0x0000000000000000000000000000000000000000",
         // "0x0000000000000000000000000000000000000000",
       ];
 
       const swapParams = [
+        [2, 2, 2],
         [2, 0, 3],
         [2, 1, 1],
         [1, 0, 1],
-        [0, 0, 0],
       ];
 
       const pools = [
@@ -306,6 +310,61 @@ describe("CurveSwap", () => {
       expect(fraxBalanceAfter).to.be.gte(
         fraxBalanceBefore.add(minimumReceived)
       );
+    });
+
+    it("Should exchange ETH for renBTC (using multiple_exchange)", async () => {
+      const curve = await loadFixture(deploy);
+
+      const fee = 1000n;
+      const exchangeAmount = 1n * 10n ** 18n;
+      const minimumReceived = 0n;
+
+      const routes = [
+        ETH,
+        "0xd51a44d3fae010294c616388b506acda1bfaae46", // tricrypto2
+        "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599", // WBTC
+        "0x93054188d876f558f4a66B2EF1d97d16eDf0895B", // tricrypto2
+        REN_BTC,
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+      ];
+
+      const swapParams = [
+        [2, 1, 3],
+        [1, 0, 1],
+        [0, 0, 0],
+        [0, 0, 0],
+      ];
+
+      const pools = [
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+        "0x0000000000000000000000000000000000000000",
+      ];
+
+      const renBalanceBefore = await renBtc.balanceOf(accounts[0].address);
+
+      await curve
+        .connect(accounts[0])
+        .exchange_multiple(
+          routes,
+          swapParams,
+          exchangeAmount,
+          minimumReceived,
+          pools,
+          fee,
+          {
+            value: exchangeAmount + fee,
+          }
+        );
+      // gasUsed: 622k
+
+      const renBalanceAfter = await renBtc.balanceOf(accounts[0].address);
+
+      expect(renBalanceAfter).to.be.gte(renBalanceBefore.add(minimumReceived));
     });
   });
 
