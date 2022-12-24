@@ -5,9 +5,8 @@ import { expect } from "chai";
 import { IERC20 } from "../typechain-types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { EURS, USDC } from "../utils/addresses";
 
-const USDC = "0xA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48";
-const EURS = "0xdb25f211ab05b1c97d595516f45794528a807ad8"; // 2 decimal
 const POOL = "0x98a7f18d4e56cfe84e3d081b40001b3d5bd3eb8b";
 const POOL_TOKEN = "0x3d229e1b4faab62f621ef2f6a610961f7bd7b23b";
 

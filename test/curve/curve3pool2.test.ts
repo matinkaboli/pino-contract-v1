@@ -6,12 +6,10 @@ import { Contract } from "ethers";
 import { IERC20 } from "../typechain-types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import wethInterface from "./interfaces/weth.json";
+import wethInterface from "../utils/wethInterface.json";
+import { USDT, WBTC, WETH } from "../utils/addresses";
 
 // Using tricrypto2 (USDT - WBTC - ETH)
-const USDT = "0xDAC17F958D2EE523A2206206994597C13D831EC7";
-const WBTC = "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599";
-const WETH = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
 const POOL = "0xd51a44d3fae010294c616388b506acda1bfaae46";
 const POOL_TOKEN = "0xc4ad29ba4b3c580e6d59105fff484999997675ff";
 const WHALE = "0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8";

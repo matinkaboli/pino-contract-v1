@@ -5,11 +5,9 @@ import { expect } from "chai";
 import { IERC20 } from "../typechain-types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { DAI, USDC, USDT } from "../utils/addresses";
 
 // Using 3pool (DAI - USDC - USDT)
-const DAI = "0x6b175474e89094c44da98b954eedeac495271d0f";
-const USDC = "0xA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48";
-const USDT = "0xDAC17F958D2EE523A2206206994597C13D831EC7";
 const POOL = "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7";
 const POOL_TOKEN = "0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490";
 const WHALE = "0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8";
