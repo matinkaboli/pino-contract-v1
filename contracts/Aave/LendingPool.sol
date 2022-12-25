@@ -7,6 +7,8 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 interface ILendingPool {
   function withdraw(address asset, uint256 amount, address to) external;
   function deposit(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
+  function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf) external;
+  function repay(address asset, uint256 amount, uint256 rateMode, address onBehalfOf) external;
 }
 
 /// @title Aave LendingPool proxy contract 
@@ -66,6 +68,8 @@ contract LendingPool is Ownable {
 
     if (!alreadyApprovedTokens[aave][_token]) {
       IERC20(_token).safeApprove(aave, type(uint).max);
+
+      alreadyApprovedTokens[aave][_token] = true;
     }
 
     ILendingPool(aave).deposit(_token, _amount, msg.sender, 0);
@@ -80,13 +84,34 @@ contract LendingPool is Ownable {
 
     if (!alreadyApprovedTokens[aave][_token]) {
       IERC20(_token).safeApprove(aave, type(uint).max);
+
+      alreadyApprovedTokens[aave][_token] = true;
     }
 
     if (!alreadyApprovedTokens[aave][_aToken]) {
       IERC20(_aToken).safeApprove(aave, type(uint).max);
+
+      alreadyApprovedTokens[aave][_aToken] = true;
     }
 
     ILendingPool(aave).withdraw(address(_token), _amount, msg.sender);
+  }
+
+  function borrow(address _token, uint _amount, uint _rateMode) public payable {
+    ILendingPool(aave).borrow(_token, _amount, _rateMode, 0, msg.sender);
+  }
+
+
+  function repay(address _token, uint _amount, uint _rateMode) public payable {
+    IERC20(_token).transferFrom(msg.sender, address(this), _amount);
+
+    if (!alreadyApprovedTokens[aave][_token]) {
+      IERC20(_token).safeApprove(aave, type(uint).max);
+
+      alreadyApprovedTokens[aave][_token] = true;
+    }
+
+    ILendingPool(aave).repay(_token, _amount, _rateMode, msg.sender);
   }
 
   /// @notice Withdraws fees and transfers them to owner
