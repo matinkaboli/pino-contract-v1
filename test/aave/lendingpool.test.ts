@@ -3,7 +3,7 @@ import hardhat from "hardhat";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import { IERC20 } from "../../typechain-types";
 import wethInterface from "../utils/wethInterface.json";
 import {
@@ -67,7 +67,7 @@ describe("Aave - LendingPool", () => {
     weth = new ethers.Contract(WETH, wethInterface, whale);
 
     const amount = 5000n * 10n ** 6n;
-    const ethAmount = 1n * 10n ** 18n;
+    const ethAmount = 3n * 10n ** 18n;
     const daiAmount = 5000n * 10n ** 18n;
 
     await usdc.connect(whale).transfer(accounts[0].address, amount);
@@ -172,12 +172,120 @@ describe("Aave - LendingPool", () => {
 
       const aUsdtBalanceBefore = await aUsdt.balanceOf(accounts[0].address);
 
-      await lendingPool.deposit(usdt.address, amount2);
+      await lendingPool.deposit(USDT, amount2);
       // gasUsed: 303k
 
       const aUsdtBalanceAfter = await aUsdt.balanceOf(accounts[0].address);
 
       expect(aUsdtBalanceAfter).to.gt(aUsdtBalanceBefore);
+    });
+  });
+
+  describe("Withdraw", () => {
+    it("Should supply USDC and withdraw it", async () => {
+      const lendingPool = await loadFixture(deploy);
+
+      const amount = 100n * 10n ** 6n;
+      const minimumAmount = 98n * 10n ** 6n;
+
+      await usdc.connect(accounts[0]).approve(lendingPool.address, amount);
+
+      const aUsdcBalanceBefore = await aUsdc.balanceOf(accounts[0].address);
+
+      await lendingPool.deposit(usdc.address, amount);
+      // gasUsed: 306k
+
+      const aUsdcBalanceAfter = await aUsdc.balanceOf(accounts[0].address);
+
+      expect(aUsdcBalanceAfter).to.gt(aUsdcBalanceBefore);
+
+      await aUsdc
+        .connect(accounts[0])
+        .approve(lendingPool.address, aUsdcBalanceAfter);
+
+      const usdcBalanceBefore = await usdc.balanceOf(accounts[0].address);
+
+      await lendingPool
+        .connect(accounts[0])
+        .withdraw(USDC, A_USDC, aUsdcBalanceAfter);
+      // gasUsed: 341k
+
+      const usdcBalanceAfter = await usdc.balanceOf(accounts[0].address);
+
+      expect(usdcBalanceAfter).to.gt(usdcBalanceBefore.add(minimumAmount));
+    });
+
+    it("Should supply DAI and withdraw it after 1 year", async () => {
+      const lendingPool = await loadFixture(deploy);
+
+      const amount = 100n * 10n ** 18n;
+      const minimumAmount = 101n * 10n ** 18n;
+
+      await dai.connect(accounts[0]).approve(lendingPool.address, amount);
+
+      const aDaiBalanceBefore = await aDai.balanceOf(accounts[0].address);
+
+      await lendingPool.deposit(DAI, amount);
+      // gasUsed: 306k
+
+      const aDaiBalanceAfter = await aDai.balanceOf(accounts[0].address);
+
+      expect(aDaiBalanceAfter).to.gt(aDaiBalanceBefore);
+
+      // Increate the time to 2 years to get some APY
+      const TWO_YEAR_AFTER = 60 * 60 * 24 * 365 * 2;
+      const now = await time.latest();
+      await time.increaseTo(now + TWO_YEAR_AFTER);
+
+      const aDaiBalanceAfter2 = await aDai.balanceOf(accounts[0].address);
+
+      await aDai
+        .connect(accounts[0])
+        .approve(lendingPool.address, aDaiBalanceAfter2);
+
+      const daiBalanceBefore = await dai.balanceOf(accounts[0].address);
+
+      await lendingPool
+        .connect(accounts[0])
+        .withdraw(DAI, A_DAI, aDaiBalanceAfter2);
+      // gasUsed: 382k
+
+      const daiBalanceAfter = await dai.balanceOf(accounts[0].address);
+
+      expect(daiBalanceAfter).to.gt(daiBalanceBefore.add(minimumAmount));
+    });
+
+    it("Should supply WETH and withdraw it", async () => {
+      const lendingPool = await loadFixture(deploy);
+
+      const amount = 2n * 10n ** 18n;
+      const minimumAmount = 1n * 10n ** 18n;
+
+      await weth.connect(accounts[0]).approve(lendingPool.address, amount);
+
+      const aWethBalanceBefore = await aWeth.balanceOf(accounts[0].address);
+
+      await lendingPool.deposit(WETH, amount);
+      // gasUsed: 306k
+
+      const aWethBalanceAfter = await aWeth.balanceOf(accounts[0].address);
+
+      expect(aWethBalanceAfter).to.gt(aWethBalanceBefore);
+
+      await aWeth
+        .connect(accounts[0])
+        .approve(lendingPool.address, aWethBalanceAfter);
+
+      const wethBalanceBefore = await weth.balanceOf(accounts[0].address);
+
+      await lendingPool
+        .connect(accounts[0])
+        .withdraw(WETH, A_WETH, aWethBalanceAfter);
+      // gasUsed: 364k
+
+      const wethBalanceAfter = await weth.balanceOf(accounts[0].address);
+
+      expect(wethBalanceAfter).to.gt(wethBalanceBefore.add(minimumAmount));
     });
   });
 
