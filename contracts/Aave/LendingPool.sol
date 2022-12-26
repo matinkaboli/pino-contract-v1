@@ -14,6 +14,8 @@ interface ILendingPool {
 interface IWethGateway {
   function depositETH(address lendingPool, address onBehalfOf, uint16 referralCode) external payable;
   function withdrawETH(address lendingPool, uint256 amount, address to) external;
+  function borrowETH(address lendingPool, uint256 amount, uint256 interestRateMode, uint16 referralCode) external;
+  function repayETH(address lendingPool, uint256 amount, uint256 rateMode, address onBehalfOf) external;
 }
 
 /// @title Aave LendingPool proxy contract 
@@ -136,7 +138,6 @@ contract LendingPool is Ownable {
   function borrow(address _token, uint _amount, uint _rateMode) public payable {
     ILendingPool(lendingPool).borrow(_token, _amount, _rateMode, 0, msg.sender);
   }
-
 
   function repay(address _token, uint _amount, uint _rateMode) public payable {
     IERC20(_token).transferFrom(msg.sender, address(this), _amount);

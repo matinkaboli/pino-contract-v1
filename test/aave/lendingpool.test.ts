@@ -47,6 +47,11 @@ describe("Aave - LendingPool", () => {
       }
     );
 
+    const amount = 100n * 10n ** 6n;
+
+    await usdc.connect(accounts[0]).approve(lendingPool.address, amount);
+    await lendingPool.connect(accounts[0]).deposit(USDC, amount);
+
     return lendingPool;
   };
 
@@ -108,7 +113,7 @@ describe("Aave - LendingPool", () => {
       );
     });
 
-    it.skip("Should deploy with all aave tokens and aTokens", async () => {
+    it("Should deploy with all aave tokens and aTokens", async () => {
       const LendingPool = await ethers.getContractFactory("LendingPool");
 
       await LendingPool.deploy(LENDING_POOL, WETH_GATEWAY, tokens, aTokens, {
@@ -350,7 +355,50 @@ describe("Aave - LendingPool", () => {
 
       expect(balanceAfter).to.gt(balanceBefore.add(minimumAmount));
     });
+
+    it("Should supply ETH directly and withdraw WETH", async () => {
+      const lendingPool = await loadFixture(deploy);
+
+      const fee = 3000n;
+      const amount = 10n * 10n ** 18n;
+      const minimumAmount = 9n * 10n ** 18n;
+
+      const aWethBalanceBefore = await aWeth.balanceOf(accounts[0].address);
+
+      await lendingPool.connect(accounts[0]).depositETH(fee, {
+        value: amount - fee,
+      });
+      // gasUsed: 293k
+
+      const aWethBalanceAfter = await aWeth.balanceOf(accounts[0].address);
+
+      expect(aWethBalanceAfter).to.gte(aWethBalanceBefore.add(minimumAmount));
+
+      const wethBalanceBefore = await weth.balanceOf(accounts[0].address);
+
+      await aWeth
+        .connect(accounts[0])
+        .approve(lendingPool.address, aWethBalanceAfter);
+
+      await lendingPool
+        .connect(accounts[0])
+        .withdraw(WETH, A_WETH, aWethBalanceAfter);
+
+      const wethBalanceAfter = await weth.balanceOf(accounts[0].address);
+
+      expect(wethBalanceAfter).to.gt(wethBalanceBefore.add(minimumAmount));
+    });
   });
+
+  // describe("Borrow", () => {
+  //   it("Should borrow DAI", async () => {
+  //     const lendingPool = await loadFixture(deploy);
+  //
+  //     const amount = 50n * 10n ** 18n;
+  //
+  //     await lendingPool.borrow(DAI, amount, 1);
+  //   });
+  // });
 
   describe("Admin", () => {
     it("Should change lending pool address", async () => {
