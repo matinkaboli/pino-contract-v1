@@ -22,6 +22,7 @@ import { Contract } from "ethers";
 
 const WHALE = "0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8";
 const LENDING_POOL = "0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9";
+const WETH_GATEWAY = "0xEFFC18fC3b7eb8E676dac549E0c693ad50D1Ce31";
 
 describe("Aave - LendingPool", () => {
   let dai: IERC20;
@@ -38,6 +39,7 @@ describe("Aave - LendingPool", () => {
     const LendingPool = await ethers.getContractFactory("LendingPool");
     const lendingPool = await LendingPool.connect(accounts[0]).deploy(
       LENDING_POOL,
+      WETH_GATEWAY,
       [USDC, USDT],
       [A_USDC, A_USDT],
       {
@@ -92,19 +94,24 @@ describe("Aave - LendingPool", () => {
     it("Should deploy with 0 tokens", async () => {
       const LendingPool = await ethers.getContractFactory("LendingPool");
 
-      await LendingPool.deploy(LENDING_POOL, [], []);
+      await LendingPool.deploy(LENDING_POOL, WETH_GATEWAY, [], []);
     });
 
     it("Should deploy with multiple tokens", async () => {
       const LendingPool = await ethers.getContractFactory("LendingPool");
 
-      await LendingPool.deploy(LENDING_POOL, [DAI, USDC], [A_DAI, A_USDC]);
+      await LendingPool.deploy(
+        LENDING_POOL,
+        WETH_GATEWAY,
+        [DAI, USDC],
+        [A_DAI, A_USDC]
+      );
     });
 
     it.skip("Should deploy with all aave tokens and aTokens", async () => {
       const LendingPool = await ethers.getContractFactory("LendingPool");
 
-      await LendingPool.deploy(LENDING_POOL, tokens, aTokens, {
+      await LendingPool.deploy(LENDING_POOL, WETH_GATEWAY, tokens, aTokens, {
         gasLimit: 10_000_000,
       });
     });
@@ -178,6 +185,25 @@ describe("Aave - LendingPool", () => {
       const aUsdtBalanceAfter = await aUsdt.balanceOf(accounts[0].address);
 
       expect(aUsdtBalanceAfter).to.gt(aUsdtBalanceBefore);
+    });
+
+    it("Should supply ETH directly", async () => {
+      const lendingPool = await loadFixture(deploy);
+
+      const fee = 3000n;
+      const amount = 10n * 10n ** 18n;
+      const minimumAmount = 9n * 10n ** 18n;
+
+      const aWethBalanceBefore = await aWeth.balanceOf(accounts[0].address);
+
+      await lendingPool.connect(accounts[0]).depositETH(fee, {
+        value: amount - fee,
+      });
+      // gasUsed: 293k
+
+      const aWethBalanceAfter = await aWeth.balanceOf(accounts[0].address);
+
+      expect(aWethBalanceAfter).to.gte(aWethBalanceBefore.add(minimumAmount));
     });
   });
 
@@ -287,6 +313,43 @@ describe("Aave - LendingPool", () => {
 
       expect(wethBalanceAfter).to.gt(wethBalanceBefore.add(minimumAmount));
     });
+
+    it("Should supply ETH directly and withdraw ETH", async () => {
+      const lendingPool = await loadFixture(deploy);
+
+      const fee = 3000n;
+      const amount = 10n * 10n ** 18n;
+      const minimumAmount = 9n * 10n ** 18n;
+
+      const aWethBalanceBefore = await aWeth.balanceOf(accounts[0].address);
+
+      await lendingPool.connect(accounts[0]).depositETH(fee, {
+        value: amount - fee,
+      });
+      // gasUsed: 293k
+
+      const aWethBalanceAfter = await aWeth.balanceOf(accounts[0].address);
+
+      expect(aWethBalanceAfter).to.gte(aWethBalanceBefore.add(minimumAmount));
+
+      const balanceBefore = await ethers.provider.getBalance(
+        accounts[0].address
+      );
+
+      await aWeth
+        .connect(accounts[0])
+        .approve(lendingPool.address, aWethBalanceAfter);
+
+      await lendingPool
+        .connect(accounts[0])
+        .withdrawETH(A_WETH, aWethBalanceAfter);
+
+      const balanceAfter = await ethers.provider.getBalance(
+        accounts[0].address
+      );
+
+      expect(balanceAfter).to.gt(balanceBefore.add(minimumAmount));
+    });
   });
 
   describe("Admin", () => {
@@ -298,15 +361,28 @@ describe("Aave - LendingPool", () => {
 
       await lendingPool
         .connect(accounts[0])
-        .changeAaveAddress(
+        .changeLendingPoolAddress(
           newLendingPoolAddress,
           [USDC, USDT],
           [A_USDC, A_USDT]
         );
 
-      const currentOwner = await lendingPool.aave();
+      const currentOwner = await lendingPool.lendingPool();
 
       expect(currentOwner).to.hexEqual(newLendingPoolAddress);
+    });
+
+    it("Should revert when trying to change lending pool address (not using owner)", async () => {
+      const lendingPool = await loadFixture(deploy);
+
+      const newLendingPoolAddress =
+        "0xc6845a5c768bf8d7681249f8927877efda425baf";
+
+      await expect(
+        lendingPool
+          .connect(accounts[1])
+          .changeLendingPoolAddress(newLendingPoolAddress, [], [])
+      ).to.be.revertedWith("Ownable: caller is not the owner");
     });
 
     it("Should withdraw money", async () => {

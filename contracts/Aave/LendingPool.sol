@@ -11,53 +11,66 @@ interface ILendingPool {
   function repay(address asset, uint256 amount, uint256 rateMode, address onBehalfOf) external;
 }
 
+interface IWethGateway {
+  function depositETH(address lendingPool, address onBehalfOf, uint16 referralCode) external payable;
+  function withdrawETH(address lendingPool, uint256 amount, address to) external;
+}
+
 /// @title Aave LendingPool proxy contract 
 /// @author Matin Kaboli
 /// @notice Deposits and Withdraws ERC20 tokens to the lending pool
 contract LendingPool is Ownable {
   using SafeERC20 for IERC20;
 
-  address public aave;
+  address public lendingPool;
+  address public wethGateway;
   mapping (address => mapping (address => bool)) private alreadyApprovedTokens;
 
   /// @notice Sets LendingPool address and approves assets and aTokens to it
-  /// @param _aave Aave lending pool address
+  /// @param _lendingPool Aave lending pool address
   /// @param _tokens ERC20 tokens, they're approved beforehand 
   /// @param _aTokens underlying ERC20 tokens, they're approved beforehand
-  constructor(address _aave, address[] memory _tokens, address[] memory _aTokens) {
-    aave = _aave;
+  constructor(address _lendingPool, address _wethGateway, address[] memory _tokens, address[] memory _aTokens) {
+    lendingPool = _lendingPool;
+    wethGateway = _wethGateway;
 
     for (uint8 i = 0; i < _tokens.length; i += 1) {
-      IERC20(_tokens[i]).safeApprove(_aave, type(uint).max);
+      IERC20(_tokens[i]).safeApprove(_lendingPool, type(uint).max);
 
-      alreadyApprovedTokens[_aave][_tokens[i]] = true;
+      alreadyApprovedTokens[_lendingPool][_tokens[i]] = true;
     }
 
     for (uint8 i = 0; i < _aTokens.length; i += 1) {
-      IERC20(_aTokens[i]).safeApprove(_aave, type(uint).max);
+      IERC20(_aTokens[i]).safeApprove(_lendingPool, type(uint).max);
 
-      alreadyApprovedTokens[_aave][_aTokens[i]] = true;
+      alreadyApprovedTokens[_lendingPool][_aTokens[i]] = true;
     }
   }
 
   /// @notice Sets LendingPool address and approves assets and aTokens to it
-  /// @param _aave Aave lending pool address
+  /// @param _lendingPool Aave lending pool address
   /// @param _tokens ERC20 tokens, they're approved beforehand 
   /// @param _aTokens underlying ERC20 tokens, they're approved beforehand
-  function changeAaveAddress(address _aave, address[] memory _tokens, address[] memory _aTokens) public onlyOwner {
-    aave = _aave;
+  function changeLendingPoolAddress(address _lendingPool, address[] memory _tokens, address[] memory _aTokens) public onlyOwner {
+    lendingPool = _lendingPool;
 
     for (uint8 i = 0; i < _tokens.length; i += 1) {
-      IERC20(_tokens[i]).safeApprove(_aave, type(uint).max);
+      IERC20(_tokens[i]).safeApprove(_lendingPool, type(uint).max);
 
-      alreadyApprovedTokens[_aave][_tokens[i]] = true;
+      alreadyApprovedTokens[_lendingPool][_tokens[i]] = true;
     }
 
     for (uint8 i = 0; i < _aTokens.length; i += 1) {
-      IERC20(_aTokens[i]).safeApprove(_aave, type(uint).max);
+      IERC20(_aTokens[i]).safeApprove(_lendingPool, type(uint).max);
 
-      alreadyApprovedTokens[_aave][_aTokens[i]] = true;
+      alreadyApprovedTokens[_lendingPool][_aTokens[i]] = true;
     }
+  }
+
+  /// @notice Sets the new WethGateway address
+  /// @param _wethGateway The new WethGateway address
+  function changeWethGatewayAddress(address _wethGateway) public onlyOwner {
+    wethGateway = _wethGateway;
   }
 
   /// @notice Deposits an ERC20 token to the pool and sends the underlying aToken to msg.sender
@@ -66,13 +79,24 @@ contract LendingPool is Ownable {
   function deposit(address _token, uint _amount) public payable {
     IERC20(_token).transferFrom(msg.sender, address(this), _amount);
 
-    if (!alreadyApprovedTokens[aave][_token]) {
-      IERC20(_token).safeApprove(aave, type(uint).max);
+    if (!alreadyApprovedTokens[lendingPool][_token]) {
+      IERC20(_token).safeApprove(lendingPool, type(uint).max);
 
-      alreadyApprovedTokens[aave][_token] = true;
+      alreadyApprovedTokens[lendingPool][_token] = true;
     }
 
-    ILendingPool(aave).deposit(_token, _amount, msg.sender, 0);
+    ILendingPool(lendingPool).deposit(_token, _amount, msg.sender, 0);
+  }
+
+  /// @notice Transfers ETH to WethGateway, then WethGateway converts ETH to WETH and deposits
+  /// it to the pool and sends the underlying aToken to msg.sender
+  /// @param _fee Fee of the proxy
+  function depositETH(uint _fee) public payable {
+    require(msg.value > 0 && msg.value > _fee);
+
+    uint ethValue = msg.value - _fee;
+
+    IWethGateway(wethGateway).depositETH{ value: ethValue }(lendingPool, msg.sender, 0);
   }
 
   /// @notice Receives underlying aToken and sends ERC20 token to msg.sender
@@ -82,36 +106,48 @@ contract LendingPool is Ownable {
   function withdraw(address _token, address _aToken, uint _amount) public payable {
     IERC20(_aToken).transferFrom(msg.sender, address(this), _amount);
 
-    if (!alreadyApprovedTokens[aave][_token]) {
-      IERC20(_token).safeApprove(aave, type(uint).max);
+    if (!alreadyApprovedTokens[lendingPool][_token]) {
+      IERC20(_token).safeApprove(lendingPool, type(uint).max);
 
-      alreadyApprovedTokens[aave][_token] = true;
+      alreadyApprovedTokens[lendingPool][_token] = true;
     }
 
-    if (!alreadyApprovedTokens[aave][_aToken]) {
-      IERC20(_aToken).safeApprove(aave, type(uint).max);
+    if (!alreadyApprovedTokens[lendingPool][_aToken]) {
+      IERC20(_aToken).safeApprove(lendingPool, type(uint).max);
 
-      alreadyApprovedTokens[aave][_aToken] = true;
+      alreadyApprovedTokens[lendingPool][_aToken] = true;
     }
 
-    ILendingPool(aave).withdraw(address(_token), _amount, msg.sender);
+    ILendingPool(lendingPool).withdraw(address(_token), _amount, msg.sender);
+  }
+
+  function withdrawETH(address _aToken, uint _amount) public payable {
+    IERC20(_aToken).transferFrom(msg.sender, address(this), _amount);
+
+    if (!alreadyApprovedTokens[wethGateway][_aToken]) {
+      IERC20(_aToken).safeApprove(wethGateway, type(uint).max);
+
+      alreadyApprovedTokens[wethGateway][_aToken] = true;
+    }
+
+    IWethGateway(wethGateway).withdrawETH(lendingPool, _amount, msg.sender);
   }
 
   function borrow(address _token, uint _amount, uint _rateMode) public payable {
-    ILendingPool(aave).borrow(_token, _amount, _rateMode, 0, msg.sender);
+    ILendingPool(lendingPool).borrow(_token, _amount, _rateMode, 0, msg.sender);
   }
 
 
   function repay(address _token, uint _amount, uint _rateMode) public payable {
     IERC20(_token).transferFrom(msg.sender, address(this), _amount);
 
-    if (!alreadyApprovedTokens[aave][_token]) {
-      IERC20(_token).safeApprove(aave, type(uint).max);
+    if (!alreadyApprovedTokens[lendingPool][_token]) {
+      IERC20(_token).safeApprove(lendingPool, type(uint).max);
 
-      alreadyApprovedTokens[aave][_token] = true;
+      alreadyApprovedTokens[lendingPool][_token] = true;
     }
 
-    ILendingPool(aave).repay(_token, _amount, _rateMode, msg.sender);
+    ILendingPool(lendingPool).repay(_token, _amount, _rateMode, msg.sender);
   }
 
   /// @notice Withdraws fees and transfers them to owner
