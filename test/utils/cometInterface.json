@@ -1,0 +1,3 @@
+[
+  "function collateralBalanceOf(address account, address asset) external view returns (uint128)"
+]

@@ -48,6 +48,7 @@ export const USDC = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";
 export const A_USDC = "0xBcca60bB61934080951369a648Fb03DF4F96263C";
 export const VD_USDC = "0x619beb58998eD2278e08620f97007e1116D5D25b";
 export const SD_USDC = "0xE4922afAB0BbaDd8ab2a88E0C79d884Ad337fcA6";
+export const C_USDC = "0xc3d688B66703497DAA19211EEdff47f25384cdc3";
 
 export const USDP = "0x8e870d67f660d95d5be530380d0ec0bd388289e1";
 export const A_USDP = "0x2e8F4bdbE3d47d7d7DE490437AeA9915D930F1A3";
@@ -154,6 +155,8 @@ export const SD_XSUSHI = '0x73Bfb81D7dbA75C904f430eA8BAe82DB0D41187B",';
 
 export const ETH = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 export const EURS = "0xdb25f211ab05b1c97d595516f45794528a807ad8";
+
+export const COMP = "0xc00e94Cb662C3520282E6f5717214004A7f26888";
 
 export const tokens = [
   BUSD,
