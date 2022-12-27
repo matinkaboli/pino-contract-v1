@@ -390,16 +390,6 @@ describe("Aave - LendingPool", () => {
     });
   });
 
-  // describe("Borrow", () => {
-  //   it("Should borrow DAI", async () => {
-  //     const lendingPool = await loadFixture(deploy);
-  //
-  //     const amount = 50n * 10n ** 18n;
-  //
-  //     await lendingPool.borrow(DAI, amount, 1);
-  //   });
-  // });
-
   describe("Admin", () => {
     it("Should change lending pool address", async () => {
       const lendingPool = await loadFixture(deploy);

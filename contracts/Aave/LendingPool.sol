@@ -7,15 +7,11 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 interface ILendingPool {
   function withdraw(address asset, uint256 amount, address to) external;
   function deposit(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
-  function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf) external;
-  function repay(address asset, uint256 amount, uint256 rateMode, address onBehalfOf) external;
 }
 
 interface IWethGateway {
   function depositETH(address lendingPool, address onBehalfOf, uint16 referralCode) external payable;
   function withdrawETH(address lendingPool, uint256 amount, address to) external;
-  function borrowETH(address lendingPool, uint256 amount, uint256 interestRateMode, uint16 referralCode) external;
-  function repayETH(address lendingPool, uint256 amount, uint256 rateMode, address onBehalfOf) external;
 }
 
 /// @title Aave LendingPool proxy contract 
@@ -133,22 +129,6 @@ contract LendingPool is Ownable {
     }
 
     IWethGateway(wethGateway).withdrawETH(lendingPool, _amount, msg.sender);
-  }
-
-  function borrow(address _token, uint _amount, uint _rateMode) public payable {
-    ILendingPool(lendingPool).borrow(_token, _amount, _rateMode, 0, msg.sender);
-  }
-
-  function repay(address _token, uint _amount, uint _rateMode) public payable {
-    IERC20(_token).transferFrom(msg.sender, address(this), _amount);
-
-    if (!alreadyApprovedTokens[lendingPool][_token]) {
-      IERC20(_token).safeApprove(lendingPool, type(uint).max);
-
-      alreadyApprovedTokens[lendingPool][_token] = true;
-    }
-
-    ILendingPool(lendingPool).repay(_token, _amount, _rateMode, msg.sender);
   }
 
   /// @notice Withdraws fees and transfers them to owner
