@@ -6,9 +6,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface IComet is IERC20 {
-  function allow(address manager, bool isAllowed) external;
   function supplyTo(address dst, address asset, uint amount) external;
-  function withdrawFrom(address a, address b, address c, uint an) external;
+  function withdrawFrom(address src, address dst, address asset, uint amount) external;
 }
 
 contract Comet is Ownable {
@@ -17,6 +16,8 @@ contract Comet is Ownable {
   address public weth;
   address public comet;
   mapping (address => mapping (address => bool)) private alreadyApprovedTokens;
+
+  error FailedToSendEther();
 
   constructor(address _comet, address _weth, address[] memory _tokens) {
     weth = _weth;
@@ -58,6 +59,14 @@ contract Comet is Ownable {
 
   function withdraw(address _asset, uint _amount) public payable {
     IComet(comet).withdrawFrom(msg.sender, msg.sender, _asset, _amount);
+  }
+
+  function withdrawETH(uint _amount) public payable {
+    IComet(comet).withdrawFrom(msg.sender, address(this), weth, _amount);
+    IWETH9(payable(weth)).withdraw(_amount);
+
+    (bool success, ) = msg.sender.call{ value: _amount }("");
+    if (!success) revert FailedToSendEther();
   }
   
   /// @notice Withdraws fees and transfers them to owner

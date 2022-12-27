@@ -177,6 +177,169 @@ describe("Comet (Compound V3)", () => {
     });
   });
 
+  describe("Withdraw", () => {
+    it("Should supply USDC and withdraw it", async () => {
+      const comet = await loadFixture(deploy);
+
+      const amount = 200n * 10n ** 6n;
+      const minimumAmount = 190n * 10n ** 6n;
+
+      const cUsdcBalanceBefore = await cUsdc.balanceOf(accounts[0].address);
+
+      await usdc.connect(accounts[0]).approve(comet.address, amount);
+
+      await comet.supply(USDC, amount);
+      // gasUsed: 131k
+
+      const cUsdcBalanceAfter = await cUsdc.balanceOf(accounts[0].address);
+
+      expect(cUsdcBalanceAfter).to.gt(cUsdcBalanceBefore.add(minimumAmount));
+
+      await cometContract.connect(accounts[0]).allow(comet.address, true);
+      // gasUsed: 57k
+
+      const usdcBalanceBefore = await usdc.balanceOf(accounts[0].address);
+
+      await comet.withdraw(USDC, cUsdcBalanceAfter);
+      // gasUsed: 92k
+
+      const usdcBalanceAfter = await usdc.balanceOf(accounts[0].address);
+
+      expect(usdcBalanceAfter).to.gt(usdcBalanceBefore);
+    });
+
+    it("Should supply WBTC and withdraw it", async () => {
+      const comet = await loadFixture(deploy);
+
+      const amount = 5n * 10n ** 8n;
+
+      await wbtc.connect(accounts[0]).approve(comet.address, amount);
+
+      await comet.supply(WBTC, amount);
+      // gasUsed: 160k
+
+      const collateralBalance = await cometContract.collateralBalanceOf(
+        accounts[0].address,
+        WBTC
+      );
+
+      expect(collateralBalance).to.gte(amount);
+
+      await cometContract.connect(accounts[0]).allow(comet.address, true);
+      // gasUsed: 57k
+
+      const wbtcBalanceBefore = await wbtc.balanceOf(accounts[0].address);
+
+      await comet.withdraw(WBTC, collateralBalance);
+      // gasUsed: 92k
+
+      const wbtcBalanceAfter = await wbtc.balanceOf(accounts[0].address);
+
+      expect(wbtcBalanceAfter).to.gt(wbtcBalanceBefore);
+    });
+
+    it("Should supply WETH and withdraw it", async () => {
+      const comet = await loadFixture(deploy);
+
+      const amount = 500n * 10n ** 8n;
+
+      await weth.connect(accounts[0]).approve(comet.address, amount);
+
+      await comet.supply(WETH, amount);
+      // gasUsed: 160k
+
+      const collateralBalance = await cometContract.collateralBalanceOf(
+        accounts[0].address,
+        WETH
+      );
+
+      expect(collateralBalance).to.gte(amount);
+
+      await cometContract.connect(accounts[0]).allow(comet.address, true);
+      // gasUsed: 57k
+
+      const wethBalanceBefore = await weth.balanceOf(accounts[0].address);
+
+      await comet.connect(accounts[0]).withdraw(WETH, collateralBalance);
+      // gasUsed: 92k
+
+      const wethBalanceAfter = await weth.balanceOf(accounts[0].address);
+
+      expect(wethBalanceAfter).to.gt(wethBalanceBefore);
+    });
+
+    it("Should supply WETH and withdraw ETH", async () => {
+      const comet = await loadFixture(deploy);
+
+      const amount = 20n * 10n ** 16n;
+      const minimumAmount = 17n * 10n ** 16n;
+
+      await weth.connect(accounts[0]).approve(comet.address, amount);
+
+      await comet.supply(WETH, amount);
+      // gasUsed: 160k
+
+      const collateralBalance = await cometContract.collateralBalanceOf(
+        accounts[0].address,
+        WETH
+      );
+
+      expect(collateralBalance).to.gte(amount);
+
+      await cometContract.connect(accounts[0]).allow(comet.address, true);
+      // gasUsed: 57k
+
+      const balanceBefore = await ethers.provider.getBalance(
+        accounts[0].address
+      );
+
+      await comet.connect(accounts[0]).withdrawETH(collateralBalance);
+      // gasUsed: 93k
+
+      const balanceAfter = await ethers.provider.getBalance(
+        accounts[0].address
+      );
+
+      expect(balanceAfter).to.gt(balanceBefore.add(minimumAmount));
+    });
+
+    it("Should supply ETH and withdraw ETH", async () => {
+      const comet = await loadFixture(deploy);
+
+      const fee = 3000n;
+      const amount = 20n * 10n ** 16n;
+      const minimumAmount = 18n * 10n ** 16n;
+
+      await comet.supplyETH(fee, {
+        value: amount + fee,
+      });
+      // gasUsed: 124k
+
+      const collateralBalance = await cometContract.collateralBalanceOf(
+        accounts[0].address,
+        WETH
+      );
+
+      expect(collateralBalance).to.gte(amount);
+
+      await cometContract.connect(accounts[0]).allow(comet.address, true);
+      // gasUsed: 57k
+
+      const balanceBefore = await ethers.provider.getBalance(
+        accounts[0].address
+      );
+
+      await comet.connect(accounts[0]).withdrawETH(collateralBalance);
+      // gasUsed: 93k
+
+      const balanceAfter = await ethers.provider.getBalance(
+        accounts[0].address
+      );
+
+      expect(balanceAfter).to.gt(balanceBefore.add(minimumAmount));
+    });
+  });
+
   describe("Admin", () => {
     it("Should withdraw money", async () => {
       const comet = await loadFixture(deploy);
