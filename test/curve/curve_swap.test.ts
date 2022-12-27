@@ -6,18 +6,11 @@ import { IERC20 } from "../typechain-types";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { Contract } from "ethers";
-import wethInterface from "./interfaces/weth.json";
+import wethInterface from "../utils/wethInterface.json";
+import { DAI, FRAX, WETH, EURS, USDC, USDT } from "../utils/addresses";
 
-const ETH = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
-const DAI = "0x6b175474e89094c44da98b954eedeac495271d0f";
-const FRAX = "0x853d955acef822db058eb8505911ed77f175b99e";
 const SWAP = "0x55b916ce078ea594c10a874ba67ecc3d62e29822";
-const WETH = "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
-const EURS = "0xdb25f211ab05b1c97d595516f45794528a807ad8"; // 2 decimal
-const USDC = "0xA0B86991C6218B36C1D19D4A2E9EB0CE3606EB48";
-const USDT = "0xDAC17F958D2EE523A2206206994597C13D831EC7";
 const REN_BTC = "0xEB4C2781e4ebA804CE9a9803C67d0893436bB27D";
-
 const WHALE = "0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8";
 const EURS_WHALE = "0xe5379345675132653bd303030c6e456034ed1961";
 
@@ -301,7 +294,7 @@ describe("CurveSwap", () => {
             value: exchangeAmount + fee,
           }
         );
-      // gasUsed: 622k
+      // gasUsed: 537k
 
       const fraxBalanceAfter = await frax.balanceOf(accounts[0].address);
 
@@ -358,7 +351,7 @@ describe("CurveSwap", () => {
             value: exchangeAmount + fee,
           }
         );
-      // gasUsed: 622k
+      // gasUsed: 435k
 
       const renBalanceAfter = await renBtc.balanceOf(accounts[0].address);
 

@@ -25,6 +25,7 @@ contract Curve3Token is Proxy {
   /// @notice Adds liquidity to a pool
   /// @param _amounts Amounts of the tokens respectively
   /// @param _minMintAmount Minimum liquidity expected to receive after adding liquidity
+  /// @param _fee Fee of the proxy
   function addLiquidity(uint256[3] memory _amounts, uint256 _minMintAmount, uint _fee) public payable {
     uint ethValue = 0;
 
