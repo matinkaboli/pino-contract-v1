@@ -1,0 +1,5 @@
+[
+  "function allow(address manager, bool isAllowed) external",
+  "function hasPermission(address owner, address manager) external view returns (bool)",
+  "function collateralBalanceOf(address account, address asset) external view returns (uint128)"
+]
