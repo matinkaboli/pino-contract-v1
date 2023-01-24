@@ -69,6 +69,14 @@ contract LendingPool2 is Ownable {
         wethGateway = _wethGateway;
     }
 
+    /// @notice Approves an ERC20 token to lendingPool
+    /// @param _token ERC20 token address
+    function approveToken(address _token) public onlyOwner {
+        IERC20(_token).safeApprove(lendingPool, type(uint256).max);
+
+        alreadyApprovedTokens[lendingPool][_token] = true;
+    }
+
     /// @notice Deposits an ERC20 token to the pool and sends the underlying aToken to msg.sender
     /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
     /// @param _signature Signature, used by Permit2
@@ -82,12 +90,6 @@ contract LendingPool2 is Ownable {
             msg.sender,
             _signature
         );
-
-        if (!alreadyApprovedTokens[lendingPool][_permit.permitted.token]) {
-            IERC20(_permit.permitted.token).safeApprove(lendingPool, type(uint256).max);
-
-            alreadyApprovedTokens[lendingPool][_permit.permitted.token] = true;
-        }
 
         ILendingPool(lendingPool).deposit(_permit.permitted.token, _permit.permitted.amount, msg.sender, 0);
     }
@@ -118,12 +120,6 @@ contract LendingPool2 is Ownable {
             _signature
         );
 
-        if (!alreadyApprovedTokens[lendingPool][_permit.permitted.token]) {
-            IERC20(_permit.permitted.token).safeApprove(lendingPool, type(uint256).max);
-
-            alreadyApprovedTokens[lendingPool][_permit.permitted.token] = true;
-        }
-
         ILendingPool(lendingPool).withdraw(_token, _permit.permitted.amount, msg.sender);
     }
 
@@ -140,12 +136,6 @@ contract LendingPool2 is Ownable {
             msg.sender,
             _signature
         );
-
-        if (!alreadyApprovedTokens[wethGateway][_permit.permitted.token]) {
-            IERC20(_permit.permitted.token).safeApprove(wethGateway, type(uint256).max);
-
-            alreadyApprovedTokens[wethGateway][_permit.permitted.token] = true;
-        }
 
         IWethGateway(wethGateway).withdrawETH(lendingPool, _permit.permitted.amount, msg.sender);
     }

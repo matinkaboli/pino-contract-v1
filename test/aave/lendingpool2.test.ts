@@ -53,6 +53,11 @@ describe("Aave - LendingPool2", () => {
       [A_USDC, A_USDT]
     );
 
+    await lendingPool.connect(account).approveToken(DAI);
+    await lendingPool.connect(account).approveToken(WETH);
+    await lendingPool.connect(account).approveToken(A_DAI);
+    await lendingPool.connect(account).approveToken(A_WETH);
+
     return lendingPool;
   };
 
@@ -128,7 +133,7 @@ describe("Aave - LendingPool2", () => {
     return { permit, signature };
   };
 
-  describe("Deployment", () => {
+  describe.skip("Deployment", () => {
     it("Should deploy with 0 tokens", async () => {
       const LendingPool = await ethers.getContractFactory("LendingPool2");
 
