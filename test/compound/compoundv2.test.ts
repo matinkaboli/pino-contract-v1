@@ -310,16 +310,12 @@ describe("Compound V2", () => {
         .connect(accounts[0])
         .approve(compound.address, cEthBalanceAfter);
 
-      const balanceBefore = await ethers.provider.getBalance(
-        accounts[0].address
-      );
+      const balanceBefore = await accounts[0].getBalance();
 
       await compound.connect(accounts[0]).withdrawETH(C_ETH, cEthBalanceAfter);
       // gasUsed: 192k
 
-      const balanceAfter = await ethers.provider.getBalance(
-        accounts[0].address
-      );
+      const balanceAfter = await accounts[0].getBalance();
 
       expect(balanceAfter).to.gt(balanceBefore.add(minimumAmount));
     });
@@ -369,15 +365,11 @@ describe("Compound V2", () => {
         value: amount,
       });
 
-      const balanceBefore = await ethers.provider.getBalance(
-        accounts[0].address
-      );
+      const balanceBefore = await accounts[0].getBalance();
 
       await comet.withdrawAdmin();
 
-      const balanceAfter = await ethers.provider.getBalance(
-        accounts[0].address
-      );
+      const balanceAfter = await accounts[0].getBalance();
 
       expect(balanceAfter).to.gt(balanceBefore);
     });
