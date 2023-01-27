@@ -40,6 +40,7 @@ contract Compound is Ownable {
     //
     /// @notice Approves an ERC20 token to lendingPool
     /// @param _token ERC20 token address
+
     function approveToken(address _token, address _cToken) public onlyOwner {
         IERC20(_token).safeApprove(_cToken, type(uint256).max);
 
