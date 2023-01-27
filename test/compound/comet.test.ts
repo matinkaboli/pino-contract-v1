@@ -28,7 +28,6 @@ describe("Comet (Compound V3)", () => {
   let weth: Contract;
   let cometContract: Contract;
   let account: SignerWithAddress;
-  let otherAccount: SignerWithAddress;
 
   const deploy = async () => {
     const Comet = await ethers.getContractFactory("Comet");
@@ -75,7 +74,7 @@ describe("Comet (Compound V3)", () => {
       params: [WBTC_WHALE],
     });
 
-    [account, otherAccount] = await ethers.getSigners();
+    [account] = await ethers.getSigners();
     const whale = await ethers.getSigner(WHALE);
     const wbtcWhale = await ethers.getSigner(WBTC_WHALE);
 

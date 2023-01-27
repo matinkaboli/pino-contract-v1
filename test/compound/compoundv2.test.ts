@@ -58,7 +58,6 @@ describe("Compound V2", () => {
   let cUsdt: ICToken;
 
   let account: SignerWithAddress;
-  let otherAccount: SignerWithAddress;
 
   const deploy = async () => {
     const Compound = await ethers.getContractFactory("Compound");
@@ -112,7 +111,7 @@ describe("Compound V2", () => {
       params: [AAVE_WHALE],
     });
 
-    [account, otherAccount] = await ethers.getSigners();
+    [account] = await ethers.getSigners();
     const whale = await ethers.getSigner(WHALE);
     const wbtcWhale = await ethers.getSigner(WBTC_WHALE);
     const aaveWhale = await ethers.getSigner(AAVE_WHALE);
