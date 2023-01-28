@@ -6,14 +6,10 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface Pool {
-    function add_liquidity(uint256[2] memory amounts, uint256 min_mint_amount) external payable;
+    function add_liquidity(uint256[2] memory amounts, uint256 min_mint) external payable;
     function remove_liquidity(uint256 _amount, uint256[2] memory min_amounts) external;
-    function remove_liquidity_one_coin(uint256 _token_amount, uint256 _i, uint256 _min_amount)
-        external
-        returns (uint256);
-    function remove_liquidity_one_coin(uint256 _token_amount, int128 _i, uint256 _min_amount)
-        external
-        returns (uint256);
+    function remove_liquidity_one_coin(uint256 _amount, uint256 _i, uint256 _min) external returns (uint256);
+    function remove_liquidity_one_coin(uint256 _amount, int128 _i, uint256 _min) external returns (uint256);
 }
 
 /// @title Curve proxy contract

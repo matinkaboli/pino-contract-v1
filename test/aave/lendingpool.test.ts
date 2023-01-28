@@ -24,7 +24,6 @@ import {
   aTokens,
 } from "../utils/addresses";
 import { IERC20 } from "../../typechain-types";
-import wethInterface from "../utils/wethInterface.json";
 
 const WHALE = "0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8";
 const LENDING_POOL = "0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9";
@@ -78,10 +77,10 @@ describe("Aave - LendingPool", () => {
     usdc = await ethers.getContractAt("IERC20", USDC);
     usdt = await ethers.getContractAt("IERC20", USDT);
     aDai = await ethers.getContractAt("IERC20", A_DAI);
+    weth = await ethers.getContractAt("IWETH9", WETH);
     aUsdc = await ethers.getContractAt("IERC20", A_USDC);
     aUsdt = await ethers.getContractAt("IERC20", A_USDT);
     aWeth = await ethers.getContractAt("IERC20", A_WETH);
-    weth = new ethers.Contract(WETH, wethInterface, whale);
 
     const amount = 5000n * 10n ** 6n;
     const ethAmount = 3n * 10n ** 18n;
@@ -94,21 +93,15 @@ describe("Aave - LendingPool", () => {
       value: ethAmount,
     });
 
-    const daiBalance = await dai.balanceOf(account.address);
-    const usdcBalance = await usdc.balanceOf(account.address);
-    const usdtBalance = await usdt.balanceOf(account.address);
-    const wethBalance = await weth.balanceOf(account.address);
-
-    expect(usdcBalance).to.gte(amount);
-    expect(usdtBalance).to.gte(amount);
-    expect(daiBalance).to.gte(daiAmount);
-    expect(wethBalance).to.gte(ethAmount);
+    expect(await usdc.balanceOf(account.address)).to.gte(amount);
+    expect(await usdt.balanceOf(account.address)).to.gte(amount);
+    expect(await dai.balanceOf(account.address)).to.gte(daiAmount);
+    expect(await weth.balanceOf(account.address)).to.gte(ethAmount);
 
     await dai.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
     await weth.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
     await usdc.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
     await usdt.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
-
     await aDai.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
     await aUsdc.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
     await aUsdt.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
