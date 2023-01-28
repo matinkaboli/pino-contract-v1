@@ -1,10 +1,18 @@
 // Curve3pool
 import hardhat from "hardhat";
-import { ethers } from "hardhat";
 import { expect } from "chai";
-import { IERC20 } from "../typechain-types";
+import { ethers } from "hardhat";
+import { constants } from "ethers";
+import {
+  PERMIT2_ADDRESS,
+  TokenPermissions,
+  SignatureTransfer,
+  PermitBatchTransferFrom,
+} from "@uniswap/permit2-sdk";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { PermitTransferFrom } from "@uniswap/permit2-sdk/dist/PermitTransferFrom";
+import { IERC20 } from "../typechain-types";
 import { DAI, USDC, USDT } from "../utils/addresses";
 
 // Using 3pool (DAI - USDC - USDT)
@@ -13,28 +21,68 @@ const POOL_TOKEN = "0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490";
 const WHALE = "0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8";
 
 describe("Curve3Pool (DAI - USDC - USDT)", () => {
+  let chainId: number;
   let dai: IERC20;
   let usdc: IERC20;
   let usdt: IERC20;
   let poolToken: IERC20;
-  let accounts: SignerWithAddress[];
+  let account: SignerWithAddress;
 
   const deploy = async () => {
     const Curve3Token = await ethers.getContractFactory("Curve3Token");
-    const curve3Token = await Curve3Token.connect(accounts[0]).deploy(
+    const curve3Token = await Curve3Token.deploy(
       POOL,
+      PERMIT2_ADDRESS,
       [DAI, USDC, USDT],
       POOL_TOKEN,
-      100,
-      {
-        gasLimit: 5_000_000,
-      }
+      100
     );
 
     return curve3Token;
   };
 
+  const sign = async (permitted: TokenPermissions, spender: string) => {
+    const permit: PermitTransferFrom = {
+      permitted,
+      spender,
+      nonce: Math.floor(Math.random() * 5000),
+      deadline: constants.MaxUint256,
+    };
+
+    const { domain, types, values } = SignatureTransfer.getPermitData(
+      permit,
+      PERMIT2_ADDRESS,
+      chainId
+    );
+
+    const signature = await account._signTypedData(domain, types, values);
+
+    return { permit, signature };
+  };
+
+  const multiSign = async (permitted: TokenPermissions[], spender: string) => {
+    const permit: PermitBatchTransferFrom = {
+      permitted,
+      spender,
+      nonce: Math.floor(Math.random() * 5000),
+      deadline: constants.MaxUint256,
+    };
+
+    const { domain, types, values } = SignatureTransfer.getPermitData(
+      permit,
+      PERMIT2_ADDRESS,
+      chainId
+    );
+
+    const signature = await account._signTypedData(domain, types, values);
+
+    return { permit, signature };
+  };
+
   before(async () => {
+    const network = await ethers.provider.getNetwork();
+    chainId = network.chainId;
+
     await hardhat.network.provider.request({
       method: "hardhat_impersonateAccount",
       params: [WHALE],
@@ -45,199 +93,252 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
     usdt = await ethers.getContractAt("IERC20", USDT);
     poolToken = await ethers.getContractAt("IERC20", POOL_TOKEN);
 
-    accounts = await ethers.getSigners();
+    [account] = await ethers.getSigners();
     const whale = await ethers.getSigner(WHALE);
 
-    const amount = 1000n * 10n ** 6n; // $1000
-    const daiAmount = 1000n * 10n ** 18n; // $1000
+    const amount = 1000n * 10n ** 6n;
+    const daiAmount = 1000n * 10n ** 18n;
 
-    await usdc.connect(whale).transfer(accounts[0].address, amount);
-    await usdt.connect(whale).transfer(accounts[0].address, amount);
-    await dai.connect(whale).transfer(accounts[0].address, daiAmount);
+    await usdc.connect(whale).transfer(account.address, amount);
+    await usdt.connect(whale).transfer(account.address, amount);
+    await dai.connect(whale).transfer(account.address, daiAmount);
 
-    const usdcBalance = await usdc.balanceOf(accounts[0].address);
-    const usdtBalance = await usdt.balanceOf(accounts[0].address);
-    const daiBalance = await dai.balanceOf(accounts[0].address);
+    expect(await usdt.balanceOf(account.address)).to.gte(amount);
+    expect(await usdc.balanceOf(account.address)).to.gte(amount);
+    expect(await dai.balanceOf(account.address)).to.gte(daiAmount);
 
-    expect(usdtBalance).to.gte(amount);
-    expect(usdcBalance).to.gte(amount);
-    expect(daiBalance).to.gte(daiAmount);
+    await dai.approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await usdc.approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await usdt.approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await poolToken.approve(PERMIT2_ADDRESS, constants.MaxUint256);
   });
 
   describe("Add Liquidity", () => {
     it("Adds liquidity only for USDC", async () => {
       const curve = await loadFixture(deploy);
 
-      const hundredUsdc = 100n * 10n ** 6n;
+      const amount = 100n * 10n ** 6n;
 
-      const poolTokenBalanceBefore = await poolToken.balanceOf(
-        accounts[0].address
+      const { permit, signature } = await multiSign(
+        [
+          {
+            amount,
+            token: USDC,
+          },
+        ],
+        curve.address
       );
 
-      await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
+      const poolTokenBalanceBefore = await poolToken.balanceOf(account.address);
 
-      await curve
-        .connect(accounts[0])
-        .addLiquidity([0, hundredUsdc, 0], 0, 100, {
-          value: 100,
-        });
-      // gasUsed: 232k
+      await curve.addLiquidity(permit, signature, [0, amount, 0], 0, 100, {
+        value: 5,
+      });
+      // gasUsed: 270k
 
-      const poolTokenBalanceAfter = await poolToken.balanceOf(
-        accounts[0].address
+      expect(await poolToken.balanceOf(account.address)).to.be.gt(
+        poolTokenBalanceBefore
       );
-
-      expect(poolTokenBalanceAfter).to.be.gt(poolTokenBalanceBefore);
     });
 
     it("Adds liquidity only for DAI", async () => {
       const curve = await loadFixture(deploy);
 
-      const hundredDai = 100n * 10n ** 18n;
+      const amount = 100n * 10n ** 18n;
 
-      const poolTokenBalanceBefore = await poolToken.balanceOf(
-        accounts[0].address
+      const { permit, signature } = await multiSign(
+        [
+          {
+            amount,
+            token: DAI,
+          },
+        ],
+        curve.address
       );
 
-      await dai.connect(accounts[0]).approve(curve.address, hundredDai);
+      const poolTokenBalanceBefore = await poolToken.balanceOf(account.address);
 
-      await curve
-        .connect(accounts[0])
-        .addLiquidity([hundredDai, 0, 0], 0, 100, {
-          value: 100,
-        });
-      // gasUsed: 215k
+      await curve.addLiquidity(permit, signature, [amount, 0, 0], 0, 100, {
+        value: 5,
+      });
+      // gasUsed: 243k
 
-      const poolTokenBalanceAfter = await poolToken.balanceOf(
-        accounts[0].address
+      expect(await poolToken.balanceOf(account.address)).to.be.gt(
+        poolTokenBalanceBefore
       );
-
-      expect(poolTokenBalanceAfter).to.be.gt(poolTokenBalanceBefore);
     });
 
     it("Adds liquidity only for USDT", async () => {
       const curve = await loadFixture(deploy);
 
-      const hundredUsdt = 100n * 10n ** 6n;
+      const amount = 100n * 10n ** 6n;
 
-      const poolTokenBalanceBefore = await poolToken.balanceOf(
-        accounts[0].address
+      const { permit, signature } = await multiSign(
+        [
+          {
+            amount,
+            token: USDT,
+          },
+        ],
+        curve.address
       );
 
-      await usdt.connect(accounts[0]).approve(curve.address, hundredUsdt);
+      const poolTokenBalanceBefore = await poolToken.balanceOf(account.address);
 
-      await curve
-        .connect(accounts[0])
-        .addLiquidity([0, 0, hundredUsdt], 0, 100, {
-          value: 100,
-        });
-      // gasUsed: 228k
+      await curve.addLiquidity(permit, signature, [0, 0, amount], 0, 100, {
+        value: 5,
+      });
+      // gasUsed: 260k
 
-      const poolTokenBalanceAfter = await poolToken.balanceOf(
-        accounts[0].address
+      expect(await poolToken.balanceOf(account.address)).to.be.gt(
+        poolTokenBalanceBefore
       );
-
-      expect(poolTokenBalanceAfter).to.be.gt(poolTokenBalanceBefore);
     });
 
-    it("Adds liquidity for 2 tokens: DAI - USDC", async () => {
+    it("Adds liquidity for 2 tokens: USDC - DAI", async () => {
       const curve = await loadFixture(deploy);
 
-      const hundredUsdc = 100n * 10n ** 6n;
-      const hundredDai = 100n * 10n ** 18n;
+      const amount1 = 100n * 10n ** 6n;
+      const amount2 = 100n * 10n ** 18n;
 
-      const poolTokenBalanceBefore = await poolToken.balanceOf(
-        accounts[0].address
+      const { permit, signature } = await multiSign(
+        [
+          {
+            amount: amount1,
+            token: USDC,
+          },
+          {
+            amount: amount2,
+            token: DAI,
+          },
+        ],
+        curve.address
       );
 
-      await dai.connect(accounts[0]).approve(curve.address, hundredDai);
-      await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
+      const poolTokenBalanceBefore = await poolToken.balanceOf(account.address);
 
-      await curve
-        .connect(accounts[0])
-        .addLiquidity([hundredDai, hundredUsdc, 0], 0, 100, {
-          value: 100,
-        });
-      // gasUsed: 276k
-
-      const poolTokenBalanceAfter = await poolToken.balanceOf(
-        accounts[0].address
+      await curve.addLiquidity(
+        permit,
+        signature,
+        [amount2, amount1, 0],
+        0,
+        100,
+        {
+          value: 5,
+        }
       );
+      // gasUsed: 305k
 
-      expect(poolTokenBalanceAfter).to.be.gt(poolTokenBalanceBefore);
+      expect(await poolToken.balanceOf(account.address)).to.be.gt(
+        poolTokenBalanceBefore
+      );
     });
 
-    it("Adds liquidity for 2 tokens: DAI - USDT", async () => {
+    it("Adds liquidity for 2 tokens: USDT - DAI", async () => {
       const curve = await loadFixture(deploy);
 
-      const hundredUsdt = 100n * 10n ** 6n;
-      const hundredDai = 100n * 10n ** 18n;
+      const amount1 = 100n * 10n ** 6n;
+      const amount2 = 100n * 10n ** 18n;
 
-      const poolTokenBalanceBefore = await poolToken.balanceOf(
-        accounts[0].address
+      const { permit, signature } = await multiSign(
+        [
+          {
+            amount: amount1,
+            token: USDT,
+          },
+          {
+            amount: amount2,
+            token: DAI,
+          },
+        ],
+        curve.address
       );
 
-      await dai.connect(accounts[0]).approve(curve.address, hundredDai);
-      await usdt.connect(accounts[0]).approve(curve.address, hundredUsdt);
+      const poolTokenBalanceBefore = await poolToken.balanceOf(account.address);
 
-      await curve
-        .connect(accounts[0])
-        .addLiquidity([hundredDai, 0, hundredUsdt], 0, 100, {
-          value: 100,
-        });
-      // gasUsed: 272k
-
-      const poolTokenBalanceAfter = await poolToken.balanceOf(
-        accounts[0].address
+      await curve.addLiquidity(
+        permit,
+        signature,
+        [amount2, 0, amount1],
+        0,
+        100,
+        {
+          value: 5,
+        }
       );
+      // gasUsed: 297k
 
-      expect(poolTokenBalanceAfter).to.be.gt(poolTokenBalanceBefore);
+      expect(await poolToken.balanceOf(account.address)).to.be.gt(
+        poolTokenBalanceBefore
+      );
     });
 
     it("Adds liquidity for 2 tokens: USDC - USDT", async () => {
       const curve = await loadFixture(deploy);
 
-      const hundredUsdc = 100n * 10n ** 6n;
-      const hundredUsdt = 100n * 10n ** 6n;
+      const amount = 100n * 10n ** 6n;
 
-      await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
-      await usdt.connect(accounts[0]).approve(curve.address, hundredUsdt);
+      const { permit, signature } = await multiSign(
+        [
+          {
+            amount,
+            token: USDC,
+          },
+          {
+            amount,
+            token: USDT,
+          },
+        ],
+        curve.address
+      );
 
-      await curve
-        .connect(accounts[0])
-        .addLiquidity([0, hundredUsdc, hundredUsdt], 0, 100, {
-          value: 100,
-        });
-      // gasUsed: 288k
+      await curve.addLiquidity(permit, signature, [0, amount, amount], 0, 100, {
+        value: 5,
+      });
+      // gasUsed: 318k
     });
 
     it("Adds liquidity for 3 tokens: DAI - USDC - USDT", async () => {
       const curve = await loadFixture(deploy);
 
-      const hundredDai = 100n * 10n ** 18n;
-      const hundredUsdc = 100n * 10n ** 6n;
-      const hundredUsdt = 100n * 10n ** 6n;
+      const amount1 = 100n * 10n ** 18n;
+      const amount2 = 100n * 10n ** 6n;
 
-      await dai.connect(accounts[0]).approve(curve.address, hundredDai);
-      await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
-      await usdt.connect(accounts[0]).approve(curve.address, hundredUsdt);
-
-      const poolTokenBalanceBefore = await poolToken.balanceOf(
-        accounts[0].address
+      const { permit, signature } = await multiSign(
+        [
+          {
+            amount: amount1,
+            token: DAI,
+          },
+          {
+            amount: amount2,
+            token: USDC,
+          },
+          {
+            amount: amount2,
+            token: USDT,
+          },
+        ],
+        curve.address
       );
 
-      await curve
-        .connect(accounts[0])
-        .addLiquidity([hundredDai, hundredUsdc, hundredUsdt], 0, 100, {
-          value: 100,
-        });
-      // gasUsed: 332k
+      const poolTokenBalanceBefore = await poolToken.balanceOf(account.address);
 
-      const poolTokenBalanceAfter = await poolToken.balanceOf(
-        accounts[0].address
+      await curve.addLiquidity(
+        permit,
+        signature,
+        [amount1, amount2, amount2],
+        0,
+        100,
+        {
+          value: 5,
+        }
       );
+      // gasUsed: 359k
 
-      expect(poolTokenBalanceAfter).to.be.gt(poolTokenBalanceBefore);
+      expect(await poolToken.balanceOf(account.address)).to.be.gt(
+        poolTokenBalanceBefore
+      );
     });
   });
 
@@ -245,77 +346,103 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
     it("Should add_liquidity for 2 tokens and remove_liquidity", async () => {
       const curve = await loadFixture(deploy);
 
-      const hundredDai = 100n * 10n ** 2n;
-      const hundredUsdc = 100n * 10n ** 6n;
+      const amount1 = 100n * 10n ** 2n;
+      const amount2 = 100n * 10n ** 6n;
 
-      await dai.connect(accounts[0]).approve(curve.address, hundredDai);
-      await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
+      const { permit, signature } = await multiSign(
+        [
+          {
+            amount: amount1,
+            token: DAI,
+          },
+          {
+            amount: amount2,
+            token: USDC,
+          },
+        ],
+        curve.address
+      );
 
-      await curve
-        .connect(accounts[0])
-        .addLiquidity([hundredDai, hundredUsdc, 0], 0, 100, {
-          value: 100,
-        });
-      // gasUsed: 332k
+      await curve.addLiquidity(
+        permit,
+        signature,
+        [amount1, amount2, 0],
+        0,
+        100,
+        {
+          value: 5,
+        }
+      );
+      // gasUsed: 302k
 
-      const poolBalance = await poolToken.balanceOf(accounts[0].address);
+      const poolBalance = await poolToken.balanceOf(account.address);
 
       expect(poolBalance).to.be.gte(1n * 10n ** 18n);
 
-      await poolToken.connect(accounts[0]).approve(curve.address, poolBalance);
+      const { permit: permit2, signature: signature2 } = await sign(
+        {
+          token: POOL_TOKEN,
+          amount: poolBalance,
+        },
+        curve.address
+      );
 
-      const daiBalanceBefore = await dai.balanceOf(accounts[0].address);
-      const usdcBalanceBefore = await usdc.balanceOf(accounts[0].address);
+      const daiBalanceBefore = await dai.balanceOf(account.address);
+      const usdcBalanceBefore = await usdc.balanceOf(account.address);
 
-      await curve
-        .connect(accounts[0])
-        .removeLiquidity(poolBalance, [1000, 100000, 0], {
-          value: 10000,
-          gasLimit: 5_000_000,
-        });
-      // gasUsed: 209k
+      await curve.removeLiquidity(permit2, signature2, [1000, 100000, 0], {
+        value: 5,
+      });
+      // gasUsed: 279k
 
-      const daiBalanceAfter = await dai.balanceOf(accounts[0].address);
-      const usdcBalanceAfter = await usdc.balanceOf(accounts[0].address);
-
-      expect(usdcBalanceAfter).to.be.gt(usdcBalanceBefore);
-      expect(daiBalanceAfter).to.be.gt(daiBalanceBefore);
+      expect(await usdc.balanceOf(account.address)).to.be.gt(usdcBalanceBefore);
+      expect(await dai.balanceOf(account.address)).to.be.gt(daiBalanceBefore);
     });
 
     it("Should add_liquidity for 2 tokens and remove_one_coin", async () => {
       const curve = await loadFixture(deploy);
 
-      const hundredUsdc = 100n * 10n ** 6n;
-      const hundredUsdt = 100n * 10n ** 6n;
+      const amount = 100n * 10n ** 6n;
 
-      await usdc.connect(accounts[0]).approve(curve.address, hundredUsdc);
-      await usdt.connect(accounts[0]).approve(curve.address, hundredUsdt);
+      const { permit, signature } = await multiSign(
+        [
+          {
+            amount,
+            token: USDT,
+          },
+          {
+            amount,
+            token: USDC,
+          },
+        ],
+        curve.address
+      );
 
-      await curve
-        .connect(accounts[0])
-        .addLiquidity([0, hundredUsdc, hundredUsdt], 0, 100, {
-          value: 100,
-        });
+      await curve.addLiquidity(permit, signature, [0, amount, amount], 0, 100, {
+        value: 5,
+      });
+      // gasUsed: 318k
 
-      const poolBalance = await poolToken.balanceOf(accounts[0].address);
+      const poolBalance = await poolToken.balanceOf(account.address);
 
       expect(poolBalance).to.be.gte(1n * 10n ** 18n);
 
-      await poolToken.connect(accounts[0]).approve(curve.address, poolBalance);
+      const { permit: permit2, signature: signature2 } = await sign(
+        {
+          token: POOL_TOKEN,
+          amount: poolBalance,
+        },
+        curve.address
+      );
 
-      const daiBalanceBefore = await dai.balanceOf(accounts[0].address);
+      const daiBalanceBefore = await dai.balanceOf(account.address);
 
-      await curve
-        .connect(accounts[0])
-        .removeLiquidityOneCoinI(poolBalance, 0, 0, {
-          value: 10000000,
-          gasLimit: 5_000_000,
-        });
-      // gasUsed: 234k
+      await curve.removeLiquidityOneCoinI(permit2, signature2, 0, 0, {
+        value: 5,
+      });
+      // gasUsed: 187k
 
-      const daiBalanceAfter = await dai.balanceOf(accounts[0].address);
-
-      expect(daiBalanceAfter).to.be.gte(daiBalanceBefore);
+      expect(await dai.balanceOf(account.address)).to.be.gte(daiBalanceBefore);
     });
   });
 
@@ -325,22 +452,16 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
 
       const amount = 10n * 10n ** 18n;
 
-      await accounts[0].sendTransaction({
+      await account.sendTransaction({
         to: curve.address,
         value: amount,
       });
 
-      const balanceBefore = await ethers.provider.getBalance(
-        accounts[0].address
-      );
+      const balanceBefore = await account.getBalance();
 
       await curve.withdrawAdmin();
 
-      const balanceAfter = await ethers.provider.getBalance(
-        accounts[0].address
-      );
-
-      expect(balanceAfter).to.gt(balanceBefore);
+      expect(await account.getBalance()).to.gt(balanceBefore);
     });
   });
 });

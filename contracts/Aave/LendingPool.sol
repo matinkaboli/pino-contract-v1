@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity >=0.8.0 <0.9.0;
 
+import "../interfaces/Permit2.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -10,62 +11,56 @@ interface ILendingPool {
 }
 
 interface IWethGateway {
-    function depositETH(address lendingPool, address onBehalfOf, uint16 referralCode) external payable;
     function withdrawETH(address lendingPool, uint256 amount, address to) external;
+    function depositETH(address lendingPool, address onBehalfOf, uint16 referralCode) external payable;
 }
 
 /// @title Aave LendingPool proxy contract
 /// @author Matin Kaboli
 /// @notice Deposits and Withdraws ERC20 tokens to the lending pool
+/// @dev This contract uses Permit2
 contract LendingPool is Ownable {
     using SafeERC20 for IERC20;
 
     address public lendingPool;
     address public wethGateway;
+    address public immutable permit2;
     mapping(address => mapping(address => bool)) private alreadyApprovedTokens;
 
     /// @notice Sets LendingPool address and approves assets and aTokens to it
     /// @param _lendingPool Aave lending pool address
+    /// @param _wethGateway Aave WethGateway contract address
+    /// @param _permit2 Address of Permit2 contract
     /// @param _tokens ERC20 tokens, they're approved beforehand
     /// @param _aTokens underlying ERC20 tokens, they're approved beforehand
-    constructor(address _lendingPool, address _wethGateway, address[] memory _tokens, address[] memory _aTokens) {
+    constructor(
+        address _lendingPool,
+        address _wethGateway,
+        address _permit2,
+        address[] memory _tokens,
+        address[] memory _aTokens
+    ) {
+        permit2 = _permit2;
         lendingPool = _lendingPool;
         wethGateway = _wethGateway;
 
-        for (uint8 i = 0; i < _tokens.length; i += 1) {
+        for (uint8 i = 0; i < _tokens.length; ++i) {
             IERC20(_tokens[i]).safeApprove(_lendingPool, type(uint256).max);
 
-            alreadyApprovedTokens[_lendingPool][_tokens[i]] = true;
+            alreadyApprovedTokens[_tokens[i]][_lendingPool] = true;
         }
 
-        for (uint8 i = 0; i < _aTokens.length; i += 1) {
+        for (uint8 i = 0; i < _aTokens.length; ++i) {
             IERC20(_aTokens[i]).safeApprove(_lendingPool, type(uint256).max);
 
-            alreadyApprovedTokens[_lendingPool][_aTokens[i]] = true;
+            alreadyApprovedTokens[_aTokens[i]][_lendingPool] = true;
         }
     }
 
     /// @notice Sets LendingPool address and approves assets and aTokens to it
     /// @param _lendingPool Aave lending pool address
-    /// @param _tokens ERC20 tokens, they're approved beforehand
-    /// @param _aTokens underlying ERC20 tokens, they're approved beforehand
-    function changeLendingPoolAddress(address _lendingPool, address[] memory _tokens, address[] memory _aTokens)
-        public
-        onlyOwner
-    {
+    function changeLendingPoolAddress(address _lendingPool) public onlyOwner {
         lendingPool = _lendingPool;
-
-        for (uint8 i = 0; i < _tokens.length; i += 1) {
-            IERC20(_tokens[i]).safeApprove(_lendingPool, type(uint256).max);
-
-            alreadyApprovedTokens[_lendingPool][_tokens[i]] = true;
-        }
-
-        for (uint8 i = 0; i < _aTokens.length; i += 1) {
-            IERC20(_aTokens[i]).safeApprove(_lendingPool, type(uint256).max);
-
-            alreadyApprovedTokens[_lendingPool][_aTokens[i]] = true;
-        }
     }
 
     /// @notice Sets the new WethGateway address
@@ -74,19 +69,37 @@ contract LendingPool is Ownable {
         wethGateway = _wethGateway;
     }
 
+    /// @notice Approves an ERC20 token to lendingPool
+    /// @param _token ERC20 token address
+    function approveToken(address _token) public onlyOwner {
+        IERC20(_token).safeApprove(lendingPool, type(uint256).max);
+
+        alreadyApprovedTokens[_token][lendingPool] = true;
+    }
+
+    /// @notice Approves an ERC20 token to wethGateway
+    /// @param _token ERC20 token address
+    function approveTokenToWethGateway(address _token) public onlyOwner {
+        IERC20(_token).safeApprove(wethGateway, type(uint256).max);
+
+        alreadyApprovedTokens[_token][wethGateway] = true;
+    }
+
     /// @notice Deposits an ERC20 token to the pool and sends the underlying aToken to msg.sender
-    /// @param _token ERC20 token to deposit
-    /// @param _amount Amount of token to deposit
-    function deposit(address _token, uint256 _amount) public payable {
-        IERC20(_token).transferFrom(msg.sender, address(this), _amount);
+    /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
+    /// @param _signature Signature, used by Permit2
+    function deposit(ISignatureTransfer.PermitTransferFrom calldata _permit, bytes calldata _signature)
+        public
+        payable
+    {
+        Permit2(permit2).permitTransferFrom(
+            _permit,
+            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
+            msg.sender,
+            _signature
+        );
 
-        if (!alreadyApprovedTokens[lendingPool][_token]) {
-            IERC20(_token).safeApprove(lendingPool, type(uint256).max);
-
-            alreadyApprovedTokens[lendingPool][_token] = true;
-        }
-
-        ILendingPool(lendingPool).deposit(_token, _amount, msg.sender, 0);
+        ILendingPool(lendingPool).deposit(_permit.permitted.token, _permit.permitted.amount, msg.sender, 0);
     }
 
     /// @notice Transfers ETH to WethGateway, then WethGateway converts ETH to WETH and deposits
@@ -101,37 +114,38 @@ contract LendingPool is Ownable {
     }
 
     /// @notice Receives underlying aToken and sends ERC20 token to msg.sender
-    /// @param _aToken underlying ERC20 token to withdraw
+    /// @param _permit Permit2 PermitTransferFrom struct, includes aToken and amount
+    /// @param _signature Signature, used by Permit2
     /// @param _token ERC20 token to receive
-    /// @param _amount Amount of token to withdraw and receive
-    function withdraw(address _token, address _aToken, uint256 _amount) public payable {
-        IERC20(_aToken).transferFrom(msg.sender, address(this), _amount);
+    function withdraw(ISignatureTransfer.PermitTransferFrom calldata _permit, bytes calldata _signature, address _token)
+        public
+        payable
+    {
+        Permit2(permit2).permitTransferFrom(
+            _permit,
+            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
+            msg.sender,
+            _signature
+        );
 
-        if (!alreadyApprovedTokens[lendingPool][_token]) {
-            IERC20(_token).safeApprove(lendingPool, type(uint256).max);
-
-            alreadyApprovedTokens[lendingPool][_token] = true;
-        }
-
-        if (!alreadyApprovedTokens[lendingPool][_aToken]) {
-            IERC20(_aToken).safeApprove(lendingPool, type(uint256).max);
-
-            alreadyApprovedTokens[lendingPool][_aToken] = true;
-        }
-
-        ILendingPool(lendingPool).withdraw(address(_token), _amount, msg.sender);
+        ILendingPool(lendingPool).withdraw(_token, _permit.permitted.amount, msg.sender);
     }
 
-    function withdrawETH(address _aToken, uint256 _amount) public payable {
-        IERC20(_aToken).transferFrom(msg.sender, address(this), _amount);
+    /// @notice Receives underlying A_WETH and sends ETH token to msg.sender
+    /// @param _permit Permit2 PermitTransferFrom struct, includes aToken and amount
+    /// @param _signature Signature, used by Permit2
+    function withdrawETH(ISignatureTransfer.PermitTransferFrom calldata _permit, bytes calldata _signature)
+        public
+        payable
+    {
+        Permit2(permit2).permitTransferFrom(
+            _permit,
+            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
+            msg.sender,
+            _signature
+        );
 
-        if (!alreadyApprovedTokens[wethGateway][_aToken]) {
-            IERC20(_aToken).safeApprove(wethGateway, type(uint256).max);
-
-            alreadyApprovedTokens[wethGateway][_aToken] = true;
-        }
-
-        IWethGateway(wethGateway).withdrawETH(lendingPool, _amount, msg.sender);
+        IWethGateway(wethGateway).withdrawETH(lendingPool, _permit.permitted.amount, msg.sender);
     }
 
     /// @notice Withdraws fees and transfers them to owner

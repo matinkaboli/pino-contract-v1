@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity =0.8.16;
+pragma solidity >=0.8.0 <0.9.0;
 
-import "../IWETH9.sol";
+import "../interfaces/IWETH9.sol";
+import "../interfaces/Permit2.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -13,11 +14,13 @@ interface IComet is IERC20 {
 /// @title Comet (Compound V3) proxy, similar to bulker contract
 /// @author Matin Kaboli
 /// @notice Supplies and Withdraws ERC20 and ETH tokens and helps with WETH wrapping
+/// @dev This contract uses Permit2
 contract Comet is Ownable {
     using SafeERC20 for IERC20;
 
     address public weth;
     address public comet;
+    address public immutable permit2;
     mapping(address => mapping(address => bool)) private alreadyApprovedTokens;
 
     error FailedToSendEther();
@@ -26,36 +29,36 @@ contract Comet is Ownable {
     /// @param _comet cUSDCv3 address, used for supplying and withdrawing tokens
     /// @param _weth WETH address used in Comet protocol
     /// @param _tokens List of ERC20 tokens used in Compound V3
-    constructor(address _comet, address _weth, address[] memory _tokens) {
+    constructor(address _comet, address _weth, address _permit2, address[] memory _tokens) {
         weth = _weth;
         comet = _comet;
+        permit2 = _permit2;
 
         for (uint8 i = 0; i < _tokens.length; i += 1) {
             IERC20(_tokens[i]).safeApprove(_comet, type(uint256).max);
 
-            alreadyApprovedTokens[_comet][_tokens[i]] = true;
+            alreadyApprovedTokens[_tokens[i]][_comet] = true;
         }
 
-        if (!alreadyApprovedTokens[_comet][_weth]) {
+        if (!alreadyApprovedTokens[_weth][_comet]) {
             IERC20(_weth).safeApprove(_comet, type(uint256).max);
 
-            alreadyApprovedTokens[_comet][_weth] = true;
+            alreadyApprovedTokens[_weth][_weth] = true;
         }
     }
 
     /// @notice Supplies an ERC20 asset to Comet
-    /// @param _asset ERC20 asset address to supply
-    /// @param _amount Amount of _asset to supply
-    function supply(address _asset, uint256 _amount) public payable {
-        IERC20(_asset).transferFrom(msg.sender, address(this), _amount);
+    /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
+    /// @param _signature Signature, used by Permit2
+    function supply(ISignatureTransfer.PermitTransferFrom calldata _permit, bytes calldata _signature) public payable {
+        Permit2(permit2).permitTransferFrom(
+            _permit,
+            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
+            msg.sender,
+            _signature
+        );
 
-        if (!alreadyApprovedTokens[comet][_asset]) {
-            IERC20(_asset).safeApprove(comet, _amount);
-
-            alreadyApprovedTokens[comet][_asset] = true;
-        }
-
-        IComet(comet).supplyTo(msg.sender, _asset, _amount);
+        IComet(comet).supplyTo(msg.sender, _permit.permitted.token, _permit.permitted.amount);
     }
 
     /// @notice Wraps ETH to WETH and supplies it to Comet

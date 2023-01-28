@@ -2,8 +2,15 @@
 import hardhat from "hardhat";
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import { constants, Contract } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import {
+  PERMIT2_ADDRESS,
+  TokenPermissions,
+  SignatureTransfer,
+} from "@uniswap/permit2-sdk";
+import { PermitTransferFrom } from "@uniswap/permit2-sdk/dist/PermitTransferFrom";
 import { ICToken, IERC20 } from "../../typechain-types";
 import wethInterface from "../utils/wethInterface.json";
 import {
@@ -30,13 +37,13 @@ import {
   C_USDP,
   C_AAVE,
 } from "../utils/addresses";
-import { Contract } from "ethers";
 
 const WHALE = "0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8";
 const WBTC_WHALE = "0x845cbcb8230197f733b59cfe1795f282786f212c";
 const AAVE_WHALE = "0x26a78d5b6d7a7aceedd1e6ee3229b372a624d8b7";
 
 describe("Compound V2", () => {
+  let chainId: number;
   let dai: IERC20;
   let aave: IERC20;
   let usdc: IERC20;
@@ -50,22 +57,45 @@ describe("Compound V2", () => {
   let cUsdc: ICToken;
   let cUsdt: ICToken;
 
-  let accounts: SignerWithAddress[];
+  let account: SignerWithAddress;
 
   const deploy = async () => {
     const Compound = await ethers.getContractFactory("Compound");
-    const compound = await Compound.connect(accounts[0]).deploy(
+    const compound = await Compound.connect(account).deploy(
+      PERMIT2_ADDRESS,
       [USDC, DAI],
-      [C_USDC_V2, C_DAI],
-      {
-        gasLimit: 2_000_000,
-      }
+      [C_USDC_V2, C_DAI]
     );
+
+    await compound.connect(account).approveToken(USDT, C_USDT);
+    await compound.connect(account).approveToken(AAVE, C_AAVE);
 
     return compound;
   };
 
+  const sign = async (permitted: TokenPermissions, spender: string) => {
+    const permit: PermitTransferFrom = {
+      permitted,
+      spender,
+      nonce: Math.floor(Math.random() * 5000),
+      deadline: constants.MaxUint256,
+    };
+
+    const { domain, types, values } = SignatureTransfer.getPermitData(
+      permit,
+      PERMIT2_ADDRESS,
+      chainId
+    );
+
+    const signature = await account._signTypedData(domain, types, values);
+
+    return { permit, signature };
+  };
+
   before(async () => {
+    const network = await ethers.provider.getNetwork();
+    chainId = network.chainId;
+
     await hardhat.network.provider.request({
       method: "hardhat_impersonateAccount",
       params: [WHALE],
@@ -81,7 +111,7 @@ describe("Compound V2", () => {
       params: [AAVE_WHALE],
     });
 
-    accounts = await ethers.getSigners();
+    [account] = await ethers.getSigners();
     const whale = await ethers.getSigner(WHALE);
     const wbtcWhale = await ethers.getSigner(WBTC_WHALE);
     const aaveWhale = await ethers.getSigner(AAVE_WHALE);
@@ -104,21 +134,21 @@ describe("Compound V2", () => {
     const daiAmount = 5000n * 10n ** 18n;
     const wbtcAmount = 5000n * 10n ** 8n;
 
-    await dai.connect(whale).transfer(accounts[0].address, daiAmount);
-    await usdc.connect(whale).transfer(accounts[0].address, usdAmount);
-    await usdt.connect(whale).transfer(accounts[0].address, usdAmount);
-    await aave.connect(aaveWhale).transfer(accounts[0].address, daiAmount);
-    await wbtc.connect(wbtcWhale).transfer(accounts[0].address, wbtcAmount);
-    await weth.connect(accounts[0]).deposit({
+    await dai.connect(whale).transfer(account.address, daiAmount);
+    await usdc.connect(whale).transfer(account.address, usdAmount);
+    await usdt.connect(whale).transfer(account.address, usdAmount);
+    await aave.connect(aaveWhale).transfer(account.address, daiAmount);
+    await wbtc.connect(wbtcWhale).transfer(account.address, wbtcAmount);
+    await weth.connect(account).deposit({
       value: ethAmount,
     });
 
-    const daiBalance = await dai.balanceOf(accounts[0].address);
-    const usdcBalance = await usdc.balanceOf(accounts[0].address);
-    const usdtBalance = await usdt.balanceOf(accounts[0].address);
-    const wethBalance = await weth.balanceOf(accounts[0].address);
-    const wbtcBalance = await wbtc.balanceOf(accounts[0].address);
-    const aaveBalance = await aave.balanceOf(accounts[0].address);
+    const daiBalance = await dai.balanceOf(account.address);
+    const usdcBalance = await usdc.balanceOf(account.address);
+    const usdtBalance = await usdt.balanceOf(account.address);
+    const wethBalance = await weth.balanceOf(account.address);
+    const wbtcBalance = await wbtc.balanceOf(account.address);
+    const aaveBalance = await aave.balanceOf(account.address);
 
     expect(daiBalance).to.gte(daiAmount);
     expect(usdcBalance).to.gte(usdAmount);
@@ -126,28 +156,33 @@ describe("Compound V2", () => {
     expect(wethBalance).to.gte(ethAmount);
     expect(aaveBalance).to.gte(daiAmount);
     expect(wbtcBalance).to.gte(wbtcAmount);
+
+    await dai.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await usdc.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await usdt.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await weth.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await aave.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await wbtc.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await cDai.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await cEth.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await cUsdc.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
   });
 
   describe("Deployment", () => {
     it("Should deploy with 0 tokens", async () => {
       const Compound = await ethers.getContractFactory("Compound");
-      await Compound.connect(accounts[0]).deploy([], []);
+      await Compound.deploy(PERMIT2_ADDRESS, [], []);
     });
 
     it("Should deploy given some tokens", async () => {
       const Compound = await ethers.getContractFactory("Compound");
-      await Compound.connect(accounts[0]).deploy(
-        [WBTC, USDC],
-        [C_WBTC, C_USDC_V2],
-        {
-          gasLimit: 2_000_000,
-        }
-      );
+      await Compound.deploy(PERMIT2_ADDRESS, [WBTC, USDC], [C_WBTC, C_USDC_V2]);
     });
 
     it("Should deploy given all tokens", async () => {
       const Compound = await ethers.getContractFactory("Compound");
-      await Compound.connect(accounts[0]).deploy(
+      await Compound.deploy(
+        PERMIT2_ADDRESS,
         [DAI, USDC, USDT, WBTC, BAT, UNI, LINK, COMP, USDP, AAVE],
         [
           C_DAI,
@@ -160,10 +195,7 @@ describe("Compound V2", () => {
           C_COMP,
           C_USDP,
           C_AAVE,
-        ],
-        {
-          gasLimit: 8_000_000,
-        }
+        ]
       );
     });
   });
@@ -174,16 +206,20 @@ describe("Compound V2", () => {
 
       const amount = 150n * 10n * 6n;
 
-      await usdc.approve(compound.address, amount);
+      const { permit, signature } = await sign(
+        {
+          token: USDC,
+          amount,
+        },
+        compound.address
+      );
 
-      const cUsdcBalanceBefore = await cUsdc.balanceOf(accounts[0].address);
+      const cUsdcBalanceBefore = await cUsdc.balanceOf(account.address);
 
-      await compound.supply(USDC, C_USDC_V2, amount);
-      // gasUsed: 275k
+      await compound.supply(permit, signature, C_USDC_V2);
+      // gasUsed: 314k
 
-      const cUsdcBalanceAfter = await cUsdc.balanceOf(accounts[0].address);
-
-      expect(cUsdcBalanceAfter).to.gt(cUsdcBalanceBefore);
+      expect(await cUsdc.balanceOf(account.address)).to.gt(cUsdcBalanceBefore);
     });
 
     it("Should supply USDT", async () => {
@@ -191,16 +227,20 @@ describe("Compound V2", () => {
 
       const amount = 150n * 10n ** 6n;
 
-      await usdt.connect(accounts[0]).approve(compound.address, amount);
+      const { permit, signature } = await sign(
+        {
+          token: USDT,
+          amount,
+        },
+        compound.address
+      );
 
-      const cUsdtBalanceBefore = await cUsdt.balanceOf(accounts[0].address);
+      const cUsdtBalanceBefore = await cUsdt.balanceOf(account.address);
 
-      await compound.supply(USDT, C_USDT, amount);
-      // gasUsed: 270k
+      await compound.supply(permit, signature, C_USDT);
+      // gasUsed: 311k
 
-      const cUsdtBalanceAfter = await cUsdt.balanceOf(accounts[0].address);
-
-      expect(cUsdtBalanceAfter).to.gt(cUsdtBalanceBefore);
+      expect(await cUsdt.balanceOf(account.address)).to.gt(cUsdtBalanceBefore);
     });
 
     it("Should supply DAI", async () => {
@@ -208,16 +248,20 @@ describe("Compound V2", () => {
 
       const amount = 100n * 10n ** 18n;
 
-      await dai.connect(accounts[0]).approve(compound.address, amount);
+      const { permit, signature } = await sign(
+        {
+          token: DAI,
+          amount,
+        },
+        compound.address
+      );
 
-      const cDaiBalanceBefore = await cDai.balanceOf(accounts[0].address);
+      const cDaiBalanceBefore = await cDai.balanceOf(account.address);
 
-      await compound.connect(accounts[0]).supply(DAI, C_DAI, amount);
-      // gasUsed: 270k
+      await compound.supply(permit, signature, C_DAI);
+      // gasUsed: 302k
 
-      const cDaiBalanceAfter = await cDai.balanceOf(accounts[0].address);
-
-      expect(cDaiBalanceAfter).gt(cDaiBalanceBefore);
+      expect(await cDai.balanceOf(account.address)).gt(cDaiBalanceBefore);
     });
 
     it("Should supply AAVE", async () => {
@@ -225,16 +269,20 @@ describe("Compound V2", () => {
 
       const amount = 100n * 10n ** 18n;
 
-      await aave.connect(accounts[0]).approve(compound.address, amount);
+      const { permit, signature } = await sign(
+        {
+          token: AAVE,
+          amount,
+        },
+        compound.address
+      );
 
-      const cAaveBalanceBefore = await cAave.balanceOf(accounts[0].address);
+      const cAaveBalanceBefore = await cAave.balanceOf(account.address);
 
-      await compound.connect(accounts[0]).supply(AAVE, C_AAVE, amount);
-      // gasUsed: 576k
+      await compound.supply(permit, signature, C_AAVE);
+      // gasUsed: 570k
 
-      const cAaveBalanceAfter = await cAave.balanceOf(accounts[0].address);
-
-      expect(cAaveBalanceAfter).gt(cAaveBalanceBefore);
+      expect(await cAave.balanceOf(account.address)).gt(cAaveBalanceBefore);
     });
 
     it("Should supply ETH", async () => {
@@ -243,14 +291,14 @@ describe("Compound V2", () => {
       const fee = 3000n;
       const amount = 1n * 10n ** 18n;
 
-      const cEthBalanceBefore = await cEth.balanceOf(accounts[0].address);
+      const cEthBalanceBefore = await cEth.balanceOf(account.address);
 
-      await compound.connect(accounts[0]).supplyETH(C_ETH, fee, {
+      await compound.supplyETH(C_ETH, fee, {
         value: amount + fee,
       });
       // gasUsed: 223k
 
-      const cEthBalanceAfter = await cEth.balanceOf(accounts[0].address);
+      const cEthBalanceAfter = await cEth.balanceOf(account.address);
 
       expect(cEthBalanceAfter).gt(cEthBalanceBefore);
     });
@@ -263,29 +311,38 @@ describe("Compound V2", () => {
       const amount = 150n * 10n ** 6n;
       const minimumAmount = 140n * 10n ** 6n;
 
-      await usdc.approve(compound.address, amount);
+      const { permit: permit1, signature: signature1 } = await sign(
+        {
+          token: USDC,
+          amount,
+        },
+        compound.address
+      );
 
-      const cUsdcBalanceBefore = await cUsdc.balanceOf(accounts[0].address);
+      const cUsdcBalanceBefore = await cUsdc.balanceOf(account.address);
 
-      await compound.supply(USDC, C_USDC_V2, amount);
-      // gasUsed: 276k
+      await compound.supply(permit1, signature1, C_USDC_V2);
 
-      const cUsdcBalanceAfter = await cUsdc.balanceOf(accounts[0].address);
+      const cUsdcBalanceAfter = await cUsdc.balanceOf(account.address);
 
       expect(cUsdcBalanceAfter).to.gt(cUsdcBalanceBefore);
 
-      await cUsdc
-        .connect(accounts[0])
-        .approve(compound.address, cUsdcBalanceAfter);
+      const { permit: permit2, signature: signature2 } = await sign(
+        {
+          token: C_USDC_V2,
+          amount: cUsdcBalanceAfter,
+        },
+        compound.address
+      );
 
-      const usdcBalanceBefore = await usdc.balanceOf(accounts[0].address);
+      const usdcBalanceBefore = await usdc.balanceOf(account.address);
 
-      await compound.withdraw(USDC, C_USDC_V2, cUsdcBalanceAfter);
-      // gasUsed: 229k
+      await compound.withdraw(permit2, signature2, USDC);
+      // gasUsed: 270k
 
-      const usdcBalanceAfter = await usdc.balanceOf(accounts[0].address);
-
-      expect(usdcBalanceAfter).to.gt(usdcBalanceBefore.add(minimumAmount));
+      expect(await usdc.balanceOf(account.address)).to.gt(
+        usdcBalanceBefore.add(minimumAmount)
+      );
     });
 
     it("Should supply ETH and withdraw", async () => {
@@ -295,29 +352,33 @@ describe("Compound V2", () => {
       const amount = 10n * 10n ** 17n;
       const minimumAmount = 8n * 10n ** 17n;
 
-      const cEthBalanceBefore = await cEth.balanceOf(accounts[0].address);
+      const cEthBalanceBefore = await cEth.balanceOf(account.address);
 
-      await compound.connect(accounts[0]).supplyETH(C_ETH, fee, {
+      await compound.supplyETH(C_ETH, fee, {
         value: amount + fee,
       });
       // gasUsed: 223k
 
-      const cEthBalanceAfter = await cEth.balanceOf(accounts[0].address);
+      const cEthBalanceAfter = await cEth.balanceOf(account.address);
 
       expect(cEthBalanceAfter).gt(cEthBalanceBefore);
 
-      await cEth
-        .connect(accounts[0])
-        .approve(compound.address, cEthBalanceAfter);
+      const { permit, signature } = await sign(
+        {
+          token: C_ETH,
+          amount: cEthBalanceAfter,
+        },
+        compound.address
+      );
 
-      const balanceBefore = await accounts[0].getBalance();
+      const balanceBefore = await account.getBalance();
 
-      await compound.connect(accounts[0]).withdrawETH(C_ETH, cEthBalanceAfter);
-      // gasUsed: 192k
+      await compound.withdrawETH(permit, signature);
+      // gasUsed: 201k
 
-      const balanceAfter = await accounts[0].getBalance();
-
-      expect(balanceAfter).to.gt(balanceBefore.add(minimumAmount));
+      expect(await account.getBalance()).to.gt(
+        balanceBefore.add(minimumAmount)
+      );
     });
 
     it("Should supply DAI and withdraw it", async () => {
@@ -326,31 +387,38 @@ describe("Compound V2", () => {
       const amount = 100n * 10n ** 18n;
       const minimumAmount = 95n * 10n ** 18n;
 
-      await dai.connect(accounts[0]).approve(compound.address, amount);
+      const { permit: permit1, signature: signature1 } = await sign(
+        {
+          token: DAI,
+          amount,
+        },
+        compound.address
+      );
 
-      const cDaiBalanceBefore = await cDai.balanceOf(accounts[0].address);
+      const cDaiBalanceBefore = await cDai.balanceOf(account.address);
 
-      await compound.connect(accounts[0]).supply(DAI, C_DAI, amount);
-      // gasUsed: 270k
+      await compound.supply(permit1, signature1, C_DAI);
 
-      const cDaiBalanceAfter = await cDai.balanceOf(accounts[0].address);
+      const cDaiBalanceAfter = await cDai.balanceOf(account.address);
 
       expect(cDaiBalanceAfter).gt(cDaiBalanceBefore);
 
-      await cDai
-        .connect(accounts[0])
-        .approve(compound.address, cDaiBalanceAfter);
+      const { permit: permit2, signature: signature2 } = await sign(
+        {
+          token: C_DAI,
+          amount: cDaiBalanceAfter,
+        },
+        compound.address
+      );
 
-      const daiBalanceBefore = await dai.balanceOf(accounts[0].address);
+      const daiBalanceBefore = await dai.balanceOf(account.address);
 
-      await compound
-        .connect(accounts[0])
-        .withdraw(DAI, C_DAI, cDaiBalanceAfter);
-      // gasUsed: 219k
+      await compound.withdraw(permit2, signature2, DAI);
+      // gasUsed: 256k
 
-      const daiBalanceAfter = await dai.balanceOf(accounts[0].address);
-
-      expect(daiBalanceAfter).to.gt(daiBalanceBefore.add(minimumAmount));
+      expect(await dai.balanceOf(account.address)).to.gt(
+        daiBalanceBefore.add(minimumAmount)
+      );
     });
   });
 
@@ -360,18 +428,16 @@ describe("Compound V2", () => {
 
       const amount = 10n * 10n ** 18n;
 
-      await accounts[0].sendTransaction({
+      await account.sendTransaction({
         to: comet.address,
         value: amount,
       });
 
-      const balanceBefore = await accounts[0].getBalance();
+      const balanceBefore = await account.getBalance();
 
       await comet.withdrawAdmin();
 
-      const balanceAfter = await accounts[0].getBalance();
-
-      expect(balanceAfter).to.gt(balanceBefore);
+      expect(await account.getBalance()).to.gt(balanceBefore);
     });
   });
 });
