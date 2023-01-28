@@ -23,19 +23,31 @@ interface Pool {
 contract Curve2Token is Proxy {
     using SafeERC20 for IERC20;
 
-    constructor(address _pool, address[] memory _tokens, address _token, uint8 _ethIndex)
-        Proxy(_pool, _tokens, _token, _ethIndex)
+    constructor(address _pool, address _permit2, address[] memory _tokens, address _token, uint8 _ethIndex)
+        Proxy(_pool, _permit2, _tokens, _token, _ethIndex)
     {}
 
     /// @notice Adds liquidity to a pool
-    /// @param _amounts Amounts of the tokens respectively
     /// @param _minMintAmount Minimum liquidity expected to receive after adding liquidity
     /// @param _fee Fee of the proxy
-    function addLiquidity(uint256[2] memory _amounts, uint256 _minMintAmount, uint256 _fee) public payable {
+    function addLiquidity(
+        ISignatureTransfer.PermitBatchTransferFrom calldata _permit,
+        bytes calldata _signature,
+        uint256[2] memory _amounts,
+        uint256 _minMintAmount,
+        uint256 _fee
+    ) public payable {
         uint256 ethValue = 0;
 
-        retrieveToken(0, _amounts[0]);
-        retrieveToken(1, _amounts[1]);
+        ISignatureTransfer.SignatureTransferDetails[] memory details =
+            new ISignatureTransfer.SignatureTransferDetails[](_permit.permitted.length);
+
+        for (uint8 i = 0; i < _permit.permitted.length; ++i) {
+            details[i].to = address(this);
+            details[i].requestedAmount = _permit.permitted[i].amount;
+        }
+
+        Permit2(permit2).permitTransferFrom(_permit, details, msg.sender, _signature);
 
         if (ethIndex != 100) {
             ethValue = msg.value - _fee;
@@ -51,15 +63,23 @@ contract Curve2Token is Proxy {
     }
 
     /// @notice Removes liquidity from the pool
-    /// @param liquidity Amount of liquidity to withdraw
     /// @param minAmounts Minimum amounts expected to receive after withdrawal
-    function removeLiquidity(uint256 liquidity, uint256[2] memory minAmounts) public payable {
-        IERC20(token).safeTransferFrom(msg.sender, address(this), liquidity);
+    function removeLiquidity(
+        ISignatureTransfer.PermitTransferFrom calldata _permit,
+        bytes calldata _signature,
+        uint256[2] memory minAmounts
+    ) public payable {
+        Permit2(permit2).permitTransferFrom(
+            _permit,
+            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
+            msg.sender,
+            _signature
+        );
 
         uint256 balance0Before = getBalance(0);
         uint256 balance1Before = getBalance(1);
 
-        Pool(pool).remove_liquidity(liquidity, minAmounts);
+        Pool(pool).remove_liquidity(_permit.permitted.amount, minAmounts);
 
         uint256 balance0After = getBalance(0);
         uint256 balance1After = getBalance(1);
@@ -70,20 +90,29 @@ contract Curve2Token is Proxy {
 
     /// @notice Removes liquidity and received only 1 token in return
     /// @dev Use this for those pools that use int128 for _i
-    /// @param _amount Amount of LP token to burn
     /// @param _i Index of receiving token in the pool
     /// @param min_amount Minimum amount expected to receive from token[i]
-    function removeLiquidityOneCoinI(uint256 _amount, int128 _i, uint256 min_amount) public payable {
+    function removeLiquidityOneCoinI(
+        ISignatureTransfer.PermitTransferFrom calldata _permit,
+        bytes calldata _signature,
+        int128 _i,
+        uint256 min_amount
+    ) public payable {
         uint256 i = 0;
         if (_i == 1) {
             i = 1;
         }
 
-        IERC20(token).safeTransferFrom(msg.sender, address(this), _amount);
+        Permit2(permit2).permitTransferFrom(
+            _permit,
+            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
+            msg.sender,
+            _signature
+        );
 
         uint256 balanceBefore = getBalance(i);
 
-        Pool(pool).remove_liquidity_one_coin(_amount, _i, min_amount);
+        Pool(pool).remove_liquidity_one_coin(_permit.permitted.amount, _i, min_amount);
 
         uint256 balanceAfter = getBalance(i);
 
@@ -92,15 +121,24 @@ contract Curve2Token is Proxy {
 
     /// @notice Removes liquidity and received only 1 token in return
     /// @dev Use this for those pools that use uint256 for _i
-    /// @param _amount Amount of LP token to burn
     /// @param _i Index of receiving token in the pool
     /// @param min_amount Minimum amount expected to receive from token[i]
-    function removeLiquidityOneCoinU(uint256 _amount, uint256 _i, uint256 min_amount) public payable {
-        IERC20(token).safeTransferFrom(msg.sender, address(this), _amount);
+    function removeLiquidityOneCoinU(
+        ISignatureTransfer.PermitTransferFrom calldata _permit,
+        bytes calldata _signature,
+        uint256 _i,
+        uint256 min_amount
+    ) public payable {
+        Permit2(permit2).permitTransferFrom(
+            _permit,
+            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
+            msg.sender,
+            _signature
+        );
 
         uint256 balanceBefore = getBalance(_i);
 
-        Pool(pool).remove_liquidity_one_coin(_amount, _i, min_amount);
+        Pool(pool).remove_liquidity_one_coin(_permit.permitted.amount, _i, min_amount);
 
         uint256 balanceAfter = getBalance(_i);
 
