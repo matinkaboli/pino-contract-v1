@@ -108,11 +108,8 @@ describe("Curve2Pool (USDC - EURS)", () => {
     await usdc.connect(whale).transfer(account.address, usdcAmount);
     await eurs.connect(eursWhale).transfer(account.address, eursAmount);
 
-    const usdcBalance = await usdc.balanceOf(account.address);
-    const eursBalance = await eurs.balanceOf(account.address);
-
-    expect(usdcBalance).to.gte(usdcAmount);
-    expect(eursBalance).to.gte(eursBalance);
+    expect(await usdc.balanceOf(account.address)).to.gte(usdcAmount);
+    expect(await eurs.balanceOf(account.address)).to.gte(eursAmount);
 
     await usdc.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
     await eurs.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
