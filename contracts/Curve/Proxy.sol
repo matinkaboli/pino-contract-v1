@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
+import "../interfaces/Permit2.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -13,6 +14,7 @@ contract Proxy is Ownable {
     address[] public tokens;
     address public immutable pool;
     address public immutable token;
+    address public immutable permit2;
     uint8 public immutable ethIndex;
 
     /// @notice Receives ERC20 tokens and Curve pool address and saves them
@@ -20,10 +22,11 @@ contract Proxy is Ownable {
     /// @param _tokens Addresses of ERC20 tokens inside the _pool
     /// @param _token Address of pool token
     /// @param _ethIndex Index of ETH in the pool (100 if ETH does not exist in the pool)
-    constructor(address _pool, address[] memory _tokens, address _token, uint8 _ethIndex) {
+    constructor(address _pool, address _permit2, address[] memory _tokens, address _token, uint8 _ethIndex) {
         pool = _pool;
         token = _token;
         tokens = _tokens;
+        permit2 = _permit2;
         ethIndex = _ethIndex;
 
         for (uint8 i = 0; i < _tokens.length; i += 1) {
