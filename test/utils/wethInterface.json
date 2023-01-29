@@ -1,5 +1,0 @@
-[
-  "function deposit() public payable",
-  "function balanceOf(address user) external view returns (uint)",
-  "function approve(address guy, uint wad) public returns (bool)"
-]

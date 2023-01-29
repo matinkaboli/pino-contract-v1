@@ -1,88 +1,50 @@
 // Comet
-import hardhat from "hardhat";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, constants } from "ethers";
+import { constants } from "ethers";
+import { PERMIT2_ADDRESS } from "@uniswap/permit2-sdk";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import {
-  PERMIT2_ADDRESS,
-  TokenPermissions,
-  SignatureTransfer,
-} from "@uniswap/permit2-sdk";
-import { PermitTransferFrom } from "@uniswap/permit2-sdk/dist/PermitTransferFrom";
-
-import { IERC20 } from "../../typechain-types";
-import wethInterface from "../utils/wethInterface.json";
-import cometInterface from "../utils/cometInterface.json";
+import { impersonate, signer } from "../utils/helpers";
+import { IERC20, IWETH9 } from "../../typechain-types";
+import { IComet } from "../../typechain-types/contracts/Comet/Comet.sol";
 import { USDC, C_USDC, LINK, COMP, WETH, UNI, WBTC } from "../utils/addresses";
 
 const WHALE = "0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8";
 const WBTC_WHALE = "0x845cbcb8230197f733b59cfe1795f282786f212c";
 
 describe("Comet (Compound V3)", () => {
-  let chainId: number;
   let usdc: IERC20;
   let wbtc: IERC20;
+  let weth: IWETH9;
   let cUsdc: IERC20;
-  let weth: Contract;
-  let cometContract: Contract;
+  let cometContract: IComet;
   let account: SignerWithAddress;
 
   const deploy = async () => {
     const Comet = await ethers.getContractFactory("Comet");
-    const comet = await Comet.connect(account).deploy(
-      C_USDC,
+    const contract = await Comet.deploy(C_USDC, WETH, PERMIT2_ADDRESS, [
+      USDC,
       WETH,
-      PERMIT2_ADDRESS,
-      [USDC, WETH, WBTC]
-    );
+      WBTC,
+    ]);
 
-    return comet;
-  };
-
-  const sign = async (permitted: TokenPermissions, spender: string) => {
-    const permit: PermitTransferFrom = {
-      permitted,
-      spender,
-      nonce: Math.floor(Math.random() * 5000),
-      deadline: constants.MaxUint256,
+    return {
+      contract,
+      sign: await signer(account),
     };
-
-    const { domain, types, values } = SignatureTransfer.getPermitData(
-      permit,
-      PERMIT2_ADDRESS,
-      chainId
-    );
-
-    const signature = await account._signTypedData(domain, types, values);
-
-    return { permit, signature };
   };
 
   before(async () => {
-    const network = await ethers.provider.getNetwork();
-    chainId = network.chainId;
-
-    await hardhat.network.provider.request({
-      method: "hardhat_impersonateAccount",
-      params: [WHALE],
-    });
-
-    await hardhat.network.provider.request({
-      method: "hardhat_impersonateAccount",
-      params: [WBTC_WHALE],
-    });
-
+    const whale = await impersonate(WHALE);
+    const wbtcWhale = await impersonate(WBTC_WHALE);
     [account] = await ethers.getSigners();
-    const whale = await ethers.getSigner(WHALE);
-    const wbtcWhale = await ethers.getSigner(WBTC_WHALE);
 
+    weth = await ethers.getContractAt("IWETH9", WETH);
     usdc = await ethers.getContractAt("IERC20", USDC);
     wbtc = await ethers.getContractAt("IERC20", WBTC);
     cUsdc = await ethers.getContractAt("IERC20", C_USDC);
-    weth = new ethers.Contract(WETH, wethInterface, whale);
-    cometContract = new ethers.Contract(C_USDC, cometInterface, whale);
+    cometContract = await ethers.getContractAt("IComet", C_USDC);
 
     const amount = 5000n * 10n ** 6n;
     const ethAmount = 3n * 10n ** 18n;
@@ -90,44 +52,37 @@ describe("Comet (Compound V3)", () => {
 
     await usdc.connect(whale).transfer(account.address, amount);
     await wbtc.connect(wbtcWhale).transfer(account.address, wbtcAmount);
-    await weth.connect(account).deposit({
+    await weth.deposit({
       value: ethAmount,
     });
 
-    const usdcBalance = await usdc.balanceOf(account.address);
-    const wbtcBalance = await wbtc.balanceOf(account.address);
-    const wethBalance = await weth.balanceOf(account.address);
+    expect(await usdc.balanceOf(account.address)).to.gte(amount);
+    expect(await weth.balanceOf(account.address)).to.gte(ethAmount);
+    expect(await wbtc.balanceOf(account.address)).to.gte(wbtcAmount);
 
-    expect(usdcBalance).to.gte(amount);
-    expect(wethBalance).to.gte(ethAmount);
-    expect(wbtcBalance).to.gte(wbtcAmount);
-
-    await usdc.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
-    await wbtc.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
-    await cUsdc.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
-    await weth.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await usdc.approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await wbtc.approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await weth.approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await cUsdc.approve(PERMIT2_ADDRESS, constants.MaxUint256);
   });
 
   describe("Deployment", () => {
     it("Should deploy with 0 tokens", async () => {
       const Comet = await ethers.getContractFactory("Comet");
 
-      await Comet.connect(account).deploy(C_USDC, WETH, PERMIT2_ADDRESS, []);
+      await Comet.deploy(C_USDC, WETH, PERMIT2_ADDRESS, []);
     });
 
     it("Should deploy with multiple tokens", async () => {
       const Comet = await ethers.getContractFactory("Comet");
 
-      await Comet.connect(account).deploy(C_USDC, WETH, PERMIT2_ADDRESS, [
-        USDC,
-        WETH,
-      ]);
+      await Comet.deploy(C_USDC, WETH, PERMIT2_ADDRESS, [USDC, WETH]);
     });
 
     it("Should deploy with all comet tokens", async () => {
       const Comet = await ethers.getContractFactory("Comet");
 
-      await Comet.connect(account).deploy(C_USDC, WETH, PERMIT2_ADDRESS, [
+      await Comet.deploy(C_USDC, WETH, PERMIT2_ADDRESS, [
         USDC,
         LINK,
         COMP,
@@ -140,7 +95,7 @@ describe("Comet (Compound V3)", () => {
 
   describe("Supply", () => {
     it("Should supply USDC", async () => {
-      const comet = await loadFixture(deploy);
+      const { contract, sign } = await loadFixture(deploy);
 
       const amount = 200n * 10n ** 6n;
       const minimumAmount = 190n * 10n ** 6n;
@@ -150,12 +105,12 @@ describe("Comet (Compound V3)", () => {
           token: USDC,
           amount,
         },
-        comet.address
+        contract.address
       );
 
       const cUsdcBalanceBefore = await cUsdc.balanceOf(account.address);
 
-      await comet.supply(permit, signature);
+      await contract.supply(permit, signature);
       // gasUsed: 170k
 
       expect(await cUsdc.balanceOf(account.address)).to.gt(
@@ -164,7 +119,7 @@ describe("Comet (Compound V3)", () => {
     });
 
     it("Should supply WETH", async () => {
-      const comet = await loadFixture(deploy);
+      const { contract, sign } = await loadFixture(deploy);
 
       const amount = 1n * 10n ** 18n;
 
@@ -173,10 +128,10 @@ describe("Comet (Compound V3)", () => {
           token: WETH,
           amount,
         },
-        comet.address
+        contract.address
       );
 
-      await comet.supply(permit, signature);
+      await contract.supply(permit, signature);
       // gasUsed: 159k
 
       const collateralBalance = await cometContract.collateralBalanceOf(
@@ -188,12 +143,12 @@ describe("Comet (Compound V3)", () => {
     });
 
     it("Should supply ETH", async () => {
-      const comet = await loadFixture(deploy);
+      const { contract } = await loadFixture(deploy);
 
       const fee = 3000n;
       const amount = 1n * 10n ** 18n;
 
-      await comet.supplyETH(fee, {
+      await contract.supplyETH(fee, {
         value: amount + fee,
       });
       // gasUsed: 124k
@@ -207,7 +162,7 @@ describe("Comet (Compound V3)", () => {
     });
 
     it("Should supply WBTC", async () => {
-      const comet = await loadFixture(deploy);
+      const { contract, sign } = await loadFixture(deploy);
 
       const amount = 500n * 10n ** 8n;
 
@@ -216,10 +171,10 @@ describe("Comet (Compound V3)", () => {
           token: WBTC,
           amount,
         },
-        comet.address
+        contract.address
       );
 
-      await comet.supply(permit, signature);
+      await contract.supply(permit, signature);
       // gasUsed: 168k
 
       const collateralBalance = await cometContract.collateralBalanceOf(
@@ -233,7 +188,7 @@ describe("Comet (Compound V3)", () => {
 
   describe("Withdraw", () => {
     it("Should supply USDC and withdraw it", async () => {
-      const comet = await loadFixture(deploy);
+      const { contract, sign } = await loadFixture(deploy);
 
       const amount = 200n * 10n ** 6n;
       const minimumAmount = 190n * 10n ** 6n;
@@ -245,21 +200,21 @@ describe("Comet (Compound V3)", () => {
           token: USDC,
           amount,
         },
-        comet.address
+        contract.address
       );
 
-      await comet.supply(permit, signature);
+      await contract.supply(permit, signature);
 
       const cUsdcBalanceAfter = await cUsdc.balanceOf(account.address);
 
       expect(cUsdcBalanceAfter).to.gt(cUsdcBalanceBefore.add(minimumAmount));
 
-      await cometContract.connect(account).allow(comet.address, true);
+      await cometContract.allow(contract.address, true);
       // gasUsed: 57k
 
       const usdcBalanceBefore = await usdc.balanceOf(account.address);
 
-      await comet.withdraw(USDC, cUsdcBalanceAfter);
+      await contract.withdraw(USDC, cUsdcBalanceAfter);
       // gasUsed: 92k
 
       const usdcBalanceAfter = await usdc.balanceOf(account.address);
@@ -268,7 +223,7 @@ describe("Comet (Compound V3)", () => {
     });
 
     it("Should supply WBTC and withdraw it", async () => {
-      const comet = await loadFixture(deploy);
+      const { contract, sign } = await loadFixture(deploy);
 
       const amount = 5n * 10n ** 8n;
 
@@ -277,10 +232,10 @@ describe("Comet (Compound V3)", () => {
           token: WBTC,
           amount,
         },
-        comet.address
+        contract.address
       );
 
-      await comet.supply(permit, signature);
+      await contract.supply(permit, signature);
       // gasUsed: 160k
 
       const collateralBalance = await cometContract.collateralBalanceOf(
@@ -290,19 +245,19 @@ describe("Comet (Compound V3)", () => {
 
       expect(collateralBalance).to.gte(amount);
 
-      await cometContract.connect(account).allow(comet.address, true);
+      await cometContract.allow(contract.address, true);
       // gasUsed: 57k
 
       const wbtcBalanceBefore = await wbtc.balanceOf(account.address);
 
-      await comet.withdraw(WBTC, collateralBalance);
+      await contract.withdraw(WBTC, collateralBalance);
       // gasUsed: 92k
 
       expect(await wbtc.balanceOf(account.address)).to.gt(wbtcBalanceBefore);
     });
 
     it("Should supply WETH and withdraw it", async () => {
-      const comet = await loadFixture(deploy);
+      const { contract, sign } = await loadFixture(deploy);
 
       const amount = 500n * 10n ** 8n;
 
@@ -311,10 +266,10 @@ describe("Comet (Compound V3)", () => {
           token: WETH,
           amount,
         },
-        comet.address
+        contract.address
       );
 
-      await comet.supply(permit, signature);
+      await contract.supply(permit, signature);
       // gasUsed: 160k
 
       const collateralBalance = await cometContract.collateralBalanceOf(
@@ -324,12 +279,12 @@ describe("Comet (Compound V3)", () => {
 
       expect(collateralBalance).to.gte(amount);
 
-      await cometContract.connect(account).allow(comet.address, true);
+      await cometContract.allow(contract.address, true);
       // gasUsed: 57k
 
       const wethBalanceBefore = await weth.balanceOf(account.address);
 
-      await comet.connect(account).withdraw(WETH, collateralBalance);
+      await contract.withdraw(WETH, collateralBalance);
       // gasUsed: 92k
 
       const wethBalanceAfter = await weth.balanceOf(account.address);
@@ -338,7 +293,7 @@ describe("Comet (Compound V3)", () => {
     });
 
     it("Should supply WETH and withdraw ETH", async () => {
-      const comet = await loadFixture(deploy);
+      const { contract, sign } = await loadFixture(deploy);
 
       const amount = 20n * 10n ** 16n;
       const minimumAmount = 17n * 10n ** 16n;
@@ -348,10 +303,10 @@ describe("Comet (Compound V3)", () => {
           token: WETH,
           amount,
         },
-        comet.address
+        contract.address
       );
 
-      await comet.supply(permit, signature);
+      await contract.supply(permit, signature);
       // gasUsed: 160k
 
       const collateralBalance = await cometContract.collateralBalanceOf(
@@ -361,12 +316,12 @@ describe("Comet (Compound V3)", () => {
 
       expect(collateralBalance).to.gte(amount);
 
-      await cometContract.connect(account).allow(comet.address, true);
+      await cometContract.allow(contract.address, true);
       // gasUsed: 57k
 
       const balanceBefore = await ethers.provider.getBalance(account.address);
 
-      await comet.connect(account).withdrawETH(collateralBalance);
+      await contract.withdrawETH(collateralBalance);
       // gasUsed: 93k
 
       const balanceAfter = await ethers.provider.getBalance(account.address);
@@ -375,13 +330,13 @@ describe("Comet (Compound V3)", () => {
     });
 
     it("Should supply ETH and withdraw ETH", async () => {
-      const comet = await loadFixture(deploy);
+      const { contract } = await loadFixture(deploy);
 
       const fee = 3000n;
       const amount = 20n * 10n ** 16n;
       const minimumAmount = 18n * 10n ** 16n;
 
-      await comet.supplyETH(fee, {
+      await contract.supplyETH(fee, {
         value: amount + fee,
       });
       // gasUsed: 124k
@@ -393,12 +348,12 @@ describe("Comet (Compound V3)", () => {
 
       expect(collateralBalance).to.gte(amount);
 
-      await cometContract.connect(account).allow(comet.address, true);
+      await cometContract.allow(contract.address, true);
       // gasUsed: 57k
 
       const balanceBefore = await account.getBalance();
 
-      await comet.connect(account).withdrawETH(collateralBalance);
+      await contract.withdrawETH(collateralBalance);
       // gasUsed: 93k
 
       expect(await account.getBalance()).to.gt(
@@ -409,18 +364,18 @@ describe("Comet (Compound V3)", () => {
 
   describe("Admin", () => {
     it("Should withdraw money", async () => {
-      const comet = await loadFixture(deploy);
+      const { contract } = await loadFixture(deploy);
 
       const amount = 10n * 10n ** 18n;
 
       await account.sendTransaction({
-        to: comet.address,
+        to: contract.address,
         value: amount,
       });
 
       const balanceBefore = await account.getBalance();
 
-      await comet.withdrawAdmin();
+      await contract.withdrawAdmin();
 
       const balanceAfter = await account.getBalance();
 
