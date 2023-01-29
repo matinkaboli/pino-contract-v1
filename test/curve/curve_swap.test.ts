@@ -1,19 +1,14 @@
 // Curve2pool
-import hardhat from "hardhat";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, constants } from "ethers";
+import { constants } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { PermitTransferFrom } from "@uniswap/permit2-sdk/dist/PermitTransferFrom";
-import {
-  PERMIT2_ADDRESS,
-  TokenPermissions,
-  SignatureTransfer,
-} from "@uniswap/permit2-sdk";
-import { DAI, FRAX, WETH, EURS, USDC, USDT, ETH } from "../utils/addresses";
+import { PERMIT2_ADDRESS } from "@uniswap/permit2-sdk";
 import { IERC20 } from "../typechain-types";
 import { IWETH9 } from "../../typechain-types";
+import { impersonate, signer } from "../utils/helpers";
+import { DAI, FRAX, WETH, EURS, USDC, USDT, ETH } from "../utils/addresses";
 
 const SWAP = "0x55b916ce078ea594c10a874ba67ecc3d62e29822";
 const REN_BTC = "0xEB4C2781e4ebA804CE9a9803C67d0893436bB27D";
@@ -25,7 +20,6 @@ const amount = 1000n * 10n ** 6n;
 const daiAmount = 1000n * 10n ** 18n;
 
 describe("CurveSwap", () => {
-  let chainId: number;
   let weth: IWETH9;
   let dai: IERC20;
   let eurs: IERC20;
@@ -38,47 +32,18 @@ describe("CurveSwap", () => {
   const deploy = async () => {
     const Curve2Token = await ethers.getContractFactory("CurveSwap");
 
-    const curve2Token = await Curve2Token.deploy(SWAP, PERMIT2_ADDRESS);
+    const contract = await Curve2Token.deploy(SWAP, PERMIT2_ADDRESS);
 
-    return curve2Token;
-  };
-
-  const sign = async (permitted: TokenPermissions, spender: string) => {
-    const permit: PermitTransferFrom = {
-      permitted,
-      spender,
-      nonce: Math.floor(Math.random() * 5000),
-      deadline: constants.MaxUint256,
+    return {
+      contract,
+      sign: await signer(account),
     };
-
-    const { domain, types, values } = SignatureTransfer.getPermitData(
-      permit,
-      PERMIT2_ADDRESS,
-      chainId
-    );
-
-    const signature = await account._signTypedData(domain, types, values);
-
-    return { permit, signature };
   };
 
   before(async () => {
-    const network = await ethers.provider.getNetwork();
-    chainId = network.chainId;
-
-    await hardhat.network.provider.request({
-      method: "hardhat_impersonateAccount",
-      params: [WHALE],
-    });
-
-    await hardhat.network.provider.request({
-      method: "hardhat_impersonateAccount",
-      params: [EURS_WHALE],
-    });
-
+    const whale = await impersonate(WHALE);
+    const eursWhale = await impersonate(EURS_WHALE);
     [account] = await ethers.getSigners();
-    const whale = await ethers.getSigner(WHALE);
-    const eursWhale = await ethers.getSigner(EURS_WHALE);
 
     dai = await ethers.getContractAt("IERC20", DAI);
     usdc = await ethers.getContractAt("IERC20", USDC);
@@ -92,32 +57,26 @@ describe("CurveSwap", () => {
     await usdt.connect(whale).transfer(account.address, amount);
     await dai.connect(whale).transfer(account.address, daiAmount);
     await eurs.connect(eursWhale).transfer(account.address, eursAmount);
-    await weth.connect(account).deposit({
+    await weth.deposit({
       value: daiAmount,
     });
 
-    const usdcBalance = await usdc.balanceOf(account.address);
-    const usdtBalance = await usdt.balanceOf(account.address);
-    const daiBalance = await dai.balanceOf(account.address);
-    const eursBalance = await eurs.balanceOf(account.address);
-    const wethBalance = await weth.balanceOf(account.address);
+    expect(await usdt.balanceOf(account.address)).to.gte(amount);
+    expect(await usdc.balanceOf(account.address)).to.gte(amount);
+    expect(await dai.balanceOf(account.address)).to.gte(daiAmount);
+    expect(await eurs.balanceOf(account.address)).to.gte(eursAmount);
+    expect(await weth.balanceOf(account.address)).to.gte(daiAmount);
 
-    expect(usdtBalance).to.gte(amount);
-    expect(usdcBalance).to.gte(amount);
-    expect(daiBalance).to.gte(daiAmount);
-    expect(eursBalance).to.gte(eursAmount);
-    expect(wethBalance).to.gte(daiAmount);
-
-    await usdc.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
-    await usdt.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
-    await dai.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
-    await eurs.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
-    await weth.connect(account).approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await usdc.approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await usdt.approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await dai.approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await eurs.approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await weth.approve(PERMIT2_ADDRESS, constants.MaxUint256);
   });
 
   describe("Exchange", () => {
     it("Should exchange DAI for USDC", async () => {
-      const curve = await loadFixture(deploy);
+      const { contract, sign } = await loadFixture(deploy);
 
       const minimumReceived = 90n * 10n ** 6n;
       const amount = 100n * 10n ** 18n;
@@ -127,7 +86,7 @@ describe("CurveSwap", () => {
           amount,
           token: DAI,
         },
-        curve.address
+        contract.address
       );
 
       const routes = [
@@ -158,7 +117,7 @@ describe("CurveSwap", () => {
 
       const usdcBalanceBefore = await usdc.balanceOf(account.address);
 
-      await curve.exchangeMultiple(
+      await contract.exchangeMultiple(
         routes,
         swapParams,
         minimumReceived,
@@ -174,7 +133,7 @@ describe("CurveSwap", () => {
     });
 
     it("Should exchange EURS for DAI", async () => {
-      const curve = await loadFixture(deploy);
+      const { contract, sign } = await loadFixture(deploy);
 
       const amount = 100n * 10n ** 2n;
       const minimumReceived = 90n * 10n ** 18n;
@@ -184,7 +143,7 @@ describe("CurveSwap", () => {
           amount,
           token: EURS,
         },
-        curve.address
+        contract.address
       );
 
       const routes = [
@@ -215,7 +174,7 @@ describe("CurveSwap", () => {
 
       const daiBalanceBefore = await dai.balanceOf(account.address);
 
-      await curve.exchangeMultiple(
+      await contract.exchangeMultiple(
         routes,
         swapParams,
         0,
@@ -231,7 +190,7 @@ describe("CurveSwap", () => {
     });
 
     it("Should exchange WETH for EURS (using multiple_exchange)", async () => {
-      const curve = await loadFixture(deploy);
+      const { contract } = await loadFixture(deploy);
 
       const fee = 100n;
       const amount = 1n * 10n ** 18n;
@@ -265,7 +224,7 @@ describe("CurveSwap", () => {
 
       const eursBalanceBefore = await eurs.balanceOf(account.address);
 
-      await curve.exchangeMultipleEth(
+      await contract.exchangeMultipleEth(
         routes,
         swapParams,
         amount,
@@ -284,7 +243,7 @@ describe("CurveSwap", () => {
     });
 
     it("Should exchange ETH for FRAX (using multiple_exchange)", async () => {
-      const curve = await loadFixture(deploy);
+      const { contract } = await loadFixture(deploy);
 
       const fee = 1000n;
       const amount = 5n * 10n ** 18n;
@@ -318,7 +277,7 @@ describe("CurveSwap", () => {
 
       const fraxBalanceBefore = await frax.balanceOf(account.address);
 
-      await curve.exchangeMultipleEth(
+      await contract.exchangeMultipleEth(
         routes,
         swapParams,
         amount,
@@ -337,7 +296,7 @@ describe("CurveSwap", () => {
     });
 
     it("Should exchange ETH for renBTC (using multiple_exchange)", async () => {
-      const curve = await loadFixture(deploy);
+      const { contract } = await loadFixture(deploy);
 
       const fee = 1000n;
       const amount = 1n * 10n ** 18n;
@@ -371,7 +330,7 @@ describe("CurveSwap", () => {
 
       const renBalanceBefore = await renBtc.balanceOf(account.address);
 
-      await curve.exchangeMultipleEth(
+      await contract.exchangeMultipleEth(
         routes,
         swapParams,
         amount,
@@ -392,18 +351,18 @@ describe("CurveSwap", () => {
 
   describe("Admin", () => {
     it("Should withdraw money", async () => {
-      const curve = await loadFixture(deploy);
+      const { contract } = await loadFixture(deploy);
 
       const amount = 10n * 10n ** 18n;
 
       await account.sendTransaction({
-        to: curve.address,
+        to: contract.address,
         value: amount,
       });
 
       const balanceBefore = await account.getBalance();
 
-      await curve.withdrawAdmin();
+      await contract.withdrawAdmin();
 
       expect(await account.getBalance()).to.gt(balanceBefore);
     });
