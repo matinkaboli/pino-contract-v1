@@ -1,20 +1,20 @@
 // Curve3pool
-import { expect } from "chai";
-import { ethers } from "hardhat";
-import { constants } from "ethers";
-import { PERMIT2_ADDRESS } from "@uniswap/permit2-sdk";
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { IERC20 } from "../typechain-types";
-import { DAI, USDC, USDT } from "../utils/addresses";
-import { impersonate, multiSigner, signer } from "../utils/helpers";
+import { expect } from 'chai';
+import { ethers } from 'hardhat';
+import { constants } from 'ethers';
+import { PERMIT2_ADDRESS } from '@uniswap/permit2-sdk';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
+import { IERC20 } from '../typechain-types';
+import { DAI, USDC, USDT } from '../utils/addresses';
+import { impersonate, multiSigner, signer } from '../utils/helpers';
 
 // Using 3pool (DAI - USDC - USDT)
-const POOL = "0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7";
-const POOL_TOKEN = "0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490";
-const WHALE = "0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8";
+const POOL = '0xbebc44782c7db0a1a60cb6fe97d0b483032ff1c7';
+const POOL_TOKEN = '0x6c3F90f043a72FA612cbac8115EE7e52BDe6E490';
+const WHALE = '0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8';
 
-describe("Curve3Pool (DAI - USDC - USDT)", () => {
+describe('Curve3Pool (DAI - USDC - USDT)', () => {
   let dai: IERC20;
   let usdc: IERC20;
   let usdt: IERC20;
@@ -22,13 +22,15 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
   let account: SignerWithAddress;
 
   const deploy = async () => {
-    const Curve3Token = await ethers.getContractFactory("Curve3Token");
+    const Curve3Token = await ethers.getContractFactory(
+      'Curve3Token',
+    );
     const contract = await Curve3Token.deploy(
       POOL,
       PERMIT2_ADDRESS,
       [DAI, USDC, USDT],
       POOL_TOKEN,
-      100
+      100,
     );
 
     return {
@@ -42,10 +44,10 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
     const whale = await impersonate(WHALE);
     [account] = await ethers.getSigners();
 
-    dai = await ethers.getContractAt("IERC20", DAI);
-    usdc = await ethers.getContractAt("IERC20", USDC);
-    usdt = await ethers.getContractAt("IERC20", USDT);
-    poolToken = await ethers.getContractAt("IERC20", POOL_TOKEN);
+    dai = await ethers.getContractAt('IERC20', DAI);
+    usdc = await ethers.getContractAt('IERC20', USDC);
+    usdt = await ethers.getContractAt('IERC20', USDT);
+    poolToken = await ethers.getContractAt('IERC20', POOL_TOKEN);
 
     const amount = 1000n * 10n ** 6n;
     const daiAmount = 1000n * 10n ** 18n;
@@ -64,8 +66,8 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
     await poolToken.approve(PERMIT2_ADDRESS, constants.MaxUint256);
   });
 
-  describe("Add Liquidity", () => {
-    it("Adds liquidity only for USDC", async () => {
+  describe('Add Liquidity', () => {
+    it('Adds liquidity only for USDC', async () => {
       const { contract, multiSign } = await loadFixture(deploy);
 
       const amount = 100n * 10n ** 6n;
@@ -77,22 +79,31 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
             token: USDC,
           },
         ],
-        contract.address
+        contract.address,
       );
 
-      const poolTokenBalanceBefore = await poolToken.balanceOf(account.address);
+      const poolTokenBalanceBefore = await poolToken.balanceOf(
+        account.address,
+      );
 
-      await contract.addLiquidity(permit, signature, [0, amount, 0], 0, 100, {
-        value: 5,
-      });
+      await contract.addLiquidity(
+        permit,
+        signature,
+        [0, amount, 0],
+        0,
+        100,
+        {
+          value: 5,
+        },
+      );
       // gasUsed: 270k
 
       expect(await poolToken.balanceOf(account.address)).to.be.gt(
-        poolTokenBalanceBefore
+        poolTokenBalanceBefore,
       );
     });
 
-    it("Adds liquidity only for DAI", async () => {
+    it('Adds liquidity only for DAI', async () => {
       const { contract, multiSign } = await loadFixture(deploy);
 
       const amount = 100n * 10n ** 18n;
@@ -104,22 +115,31 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
             token: DAI,
           },
         ],
-        contract.address
+        contract.address,
       );
 
-      const poolTokenBalanceBefore = await poolToken.balanceOf(account.address);
+      const poolTokenBalanceBefore = await poolToken.balanceOf(
+        account.address,
+      );
 
-      await contract.addLiquidity(permit, signature, [amount, 0, 0], 0, 100, {
-        value: 5,
-      });
+      await contract.addLiquidity(
+        permit,
+        signature,
+        [amount, 0, 0],
+        0,
+        100,
+        {
+          value: 5,
+        },
+      );
       // gasUsed: 243k
 
       expect(await poolToken.balanceOf(account.address)).to.be.gt(
-        poolTokenBalanceBefore
+        poolTokenBalanceBefore,
       );
     });
 
-    it("Adds liquidity only for USDT", async () => {
+    it('Adds liquidity only for USDT', async () => {
       const { contract, multiSign } = await loadFixture(deploy);
 
       const amount = 100n * 10n ** 6n;
@@ -131,22 +151,31 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
             token: USDT,
           },
         ],
-        contract.address
+        contract.address,
       );
 
-      const poolTokenBalanceBefore = await poolToken.balanceOf(account.address);
+      const poolTokenBalanceBefore = await poolToken.balanceOf(
+        account.address,
+      );
 
-      await contract.addLiquidity(permit, signature, [0, 0, amount], 0, 100, {
-        value: 5,
-      });
+      await contract.addLiquidity(
+        permit,
+        signature,
+        [0, 0, amount],
+        0,
+        100,
+        {
+          value: 5,
+        },
+      );
       // gasUsed: 260k
 
       expect(await poolToken.balanceOf(account.address)).to.be.gt(
-        poolTokenBalanceBefore
+        poolTokenBalanceBefore,
       );
     });
 
-    it("Adds liquidity for 2 tokens: USDC - DAI", async () => {
+    it('Adds liquidity for 2 tokens: USDC - DAI', async () => {
       const { contract, multiSign } = await loadFixture(deploy);
 
       const amount1 = 100n * 10n ** 6n;
@@ -163,10 +192,12 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
             token: DAI,
           },
         ],
-        contract.address
+        contract.address,
       );
 
-      const poolTokenBalanceBefore = await poolToken.balanceOf(account.address);
+      const poolTokenBalanceBefore = await poolToken.balanceOf(
+        account.address,
+      );
 
       await contract.addLiquidity(
         permit,
@@ -176,16 +207,16 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
         100,
         {
           value: 5,
-        }
+        },
       );
       // gasUsed: 305k
 
       expect(await poolToken.balanceOf(account.address)).to.be.gt(
-        poolTokenBalanceBefore
+        poolTokenBalanceBefore,
       );
     });
 
-    it("Adds liquidity for 2 tokens: USDT - DAI", async () => {
+    it('Adds liquidity for 2 tokens: USDT - DAI', async () => {
       const { contract, multiSign } = await loadFixture(deploy);
 
       const amount1 = 100n * 10n ** 6n;
@@ -202,10 +233,12 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
             token: DAI,
           },
         ],
-        contract.address
+        contract.address,
       );
 
-      const poolTokenBalanceBefore = await poolToken.balanceOf(account.address);
+      const poolTokenBalanceBefore = await poolToken.balanceOf(
+        account.address,
+      );
 
       await contract.addLiquidity(
         permit,
@@ -215,16 +248,16 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
         100,
         {
           value: 5,
-        }
+        },
       );
       // gasUsed: 297k
 
       expect(await poolToken.balanceOf(account.address)).to.be.gt(
-        poolTokenBalanceBefore
+        poolTokenBalanceBefore,
       );
     });
 
-    it("Adds liquidity for 2 tokens: USDC - USDT", async () => {
+    it('Adds liquidity for 2 tokens: USDC - USDT', async () => {
       const { contract, multiSign } = await loadFixture(deploy);
 
       const amount = 100n * 10n ** 6n;
@@ -240,7 +273,7 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
             token: USDT,
           },
         ],
-        contract.address
+        contract.address,
       );
 
       await contract.addLiquidity(
@@ -251,12 +284,12 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
         100,
         {
           value: 5,
-        }
+        },
       );
       // gasUsed: 318k
     });
 
-    it("Adds liquidity for 3 tokens: DAI - USDC - USDT", async () => {
+    it('Adds liquidity for 3 tokens: DAI - USDC - USDT', async () => {
       const { contract, multiSign } = await loadFixture(deploy);
 
       const amount1 = 100n * 10n ** 18n;
@@ -277,10 +310,12 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
             token: USDT,
           },
         ],
-        contract.address
+        contract.address,
       );
 
-      const poolTokenBalanceBefore = await poolToken.balanceOf(account.address);
+      const poolTokenBalanceBefore = await poolToken.balanceOf(
+        account.address,
+      );
 
       await contract.addLiquidity(
         permit,
@@ -290,18 +325,18 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
         100,
         {
           value: 5,
-        }
+        },
       );
       // gasUsed: 359k
 
       expect(await poolToken.balanceOf(account.address)).to.be.gt(
-        poolTokenBalanceBefore
+        poolTokenBalanceBefore,
       );
     });
   });
 
-  describe("Remove Liquidity", () => {
-    it("Should add_liquidity for 2 tokens and remove_liquidity", async () => {
+  describe('Remove Liquidity', () => {
+    it('Should add_liquidity for 2 tokens and remove_liquidity', async () => {
       const { contract, sign, multiSign } = await loadFixture(deploy);
 
       const amount1 = 100n * 10n ** 2n;
@@ -318,7 +353,7 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
             token: USDC,
           },
         ],
-        contract.address
+        contract.address,
       );
 
       await contract.addLiquidity(
@@ -329,7 +364,7 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
         100,
         {
           value: 5,
-        }
+        },
       );
       // gasUsed: 302k
 
@@ -342,22 +377,31 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
           token: POOL_TOKEN,
           amount: poolBalance,
         },
-        contract.address
+        contract.address,
       );
 
       const daiBalanceBefore = await dai.balanceOf(account.address);
       const usdcBalanceBefore = await usdc.balanceOf(account.address);
 
-      await contract.removeLiquidity(permit2, signature2, [1000, 100000, 0], {
-        value: 5,
-      });
+      await contract.removeLiquidity(
+        permit2,
+        signature2,
+        [1000, 100000, 0],
+        {
+          value: 5,
+        },
+      );
       // gasUsed: 279k
 
-      expect(await usdc.balanceOf(account.address)).to.be.gt(usdcBalanceBefore);
-      expect(await dai.balanceOf(account.address)).to.be.gt(daiBalanceBefore);
+      expect(await usdc.balanceOf(account.address)).to.be.gt(
+        usdcBalanceBefore,
+      );
+      expect(await dai.balanceOf(account.address)).to.be.gt(
+        daiBalanceBefore,
+      );
     });
 
-    it("Should add_liquidity for 2 tokens and remove_one_coin", async () => {
+    it('Should add_liquidity for 2 tokens and remove_one_coin', async () => {
       const { contract, sign, multiSign } = await loadFixture(deploy);
 
       const amount = 100n * 10n ** 6n;
@@ -373,7 +417,7 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
             token: USDC,
           },
         ],
-        contract.address
+        contract.address,
       );
 
       await contract.addLiquidity(
@@ -384,7 +428,7 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
         100,
         {
           value: 5,
-        }
+        },
       );
       // gasUsed: 318k
 
@@ -397,22 +441,30 @@ describe("Curve3Pool (DAI - USDC - USDT)", () => {
           token: POOL_TOKEN,
           amount: poolBalance,
         },
-        contract.address
+        contract.address,
       );
 
       const daiBalanceBefore = await dai.balanceOf(account.address);
 
-      await contract.removeLiquidityOneCoinI(permit2, signature2, 0, 0, {
-        value: 5,
-      });
+      await contract.removeLiquidityOneCoinI(
+        permit2,
+        signature2,
+        0,
+        0,
+        {
+          value: 5,
+        },
+      );
       // gasUsed: 187k
 
-      expect(await dai.balanceOf(account.address)).to.be.gte(daiBalanceBefore);
+      expect(await dai.balanceOf(account.address)).to.be.gte(
+        daiBalanceBefore,
+      );
     });
   });
 
-  describe("Admin", () => {
-    it("Should withdraw money", async () => {
+  describe('Admin', () => {
+    it('Should withdraw money', async () => {
       const { contract } = await loadFixture(deploy);
 
       const amount = 10n * 10n ** 18n;
