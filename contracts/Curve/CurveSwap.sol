@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
-import "../interfaces/Permit2.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "../Proxy.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface ICurveSwap {
@@ -19,18 +18,16 @@ interface ICurveSwap {
 /// @title Curve swap proxy contract
 /// @author Matin Kaboli
 /// @notice Exchanges tokens from different pools
-contract CurveSwap is Ownable {
+contract CurveSwap is Proxy {
     using SafeERC20 for IERC20;
 
     address public immutable swapContract;
-    address public immutable permit2;
     address constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     mapping(address => mapping(address => bool)) private alreadyApprovedTokens;
 
     /// @notice Receives swap contract address
     /// @param _swapContract Swap contract address
-    constructor(address _swapContract, address _permit2) {
-        permit2 = _permit2;
+    constructor(address _swapContract, Permit2 _permit2) Proxy(_permit2) {
         swapContract = _swapContract;
     }
 
@@ -62,7 +59,7 @@ contract CurveSwap is Ownable {
         ISignatureTransfer.PermitTransferFrom calldata _permit,
         bytes calldata _signature
     ) external payable {
-        Permit2(permit2).permitTransferFrom(
+        permit2.permitTransferFrom(
             _permit,
             ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
             msg.sender,
@@ -116,13 +113,4 @@ contract CurveSwap is Ownable {
             _route, _swap_params, _amount, _expected, _pools, msg.sender
         );
     }
-
-    /// @notice Withdraws fees and transfers them to owner
-    function withdrawAdmin() public onlyOwner {
-        require(address(this).balance > 0);
-
-        payable(owner()).transfer(address(this).balance);
-    }
-
-    receive() external payable {}
 }
