@@ -1,4 +1,3 @@
-// Curve3pool
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { Contract, constants } from 'ethers';

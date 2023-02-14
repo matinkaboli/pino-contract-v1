@@ -1,4 +1,3 @@
-// Compound V2
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { constants } from 'ethers';
