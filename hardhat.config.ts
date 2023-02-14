@@ -2,7 +2,24 @@ import { HardhatUserConfig } from 'hardhat/config';
 import '@nomicfoundation/hardhat-toolbox';
 
 const config: HardhatUserConfig = {
-  solidity: '0.8.17',
+  solidity: {
+    compilers: [
+      {
+        version: '0.8.18',
+        settings: {
+          viaIR: true,
+          evmVersion: 'istanbul',
+          optimizer: {
+            enabled: true,
+            runs: 1000,
+          },
+          metadata: {
+            bytecodeHash: 'none',
+          },
+        },
+      },
+    ],
+  },
   networks: {
     hardhat: {
       gas: 12000000,
