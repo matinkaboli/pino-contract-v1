@@ -3,24 +3,45 @@ pragma solidity ^0.8.18;
 pragma abicoder v2;
 
 import "../Proxy.sol";
+import "../interfaces/IWETH9.sol";
 import "../interfaces/IUniversalRouter.sol";
 import "../interfaces/INonfungiblePositionManager.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 
-contract Uniswap is Proxy {
+contract Uniswap is IERC721Receiver, Proxy {
     using SafeERC20 for IERC20;
-    address WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
+    struct Deposit {
+        address owner;
+        uint128 liquidity;
+        address token0;
+        address token1;
+    }
+
+    event DepositCreated(address owner, uint256 tokenId);
+
+    address public immutable weth;
     ISwapRouter public immutable swapRouter;
+    IUniversalRouter public immutable universalRouter;
     INonfungiblePositionManager public immutable nonfungiblePositionManager;
+
+    mapping(uint256 => Deposit) public deposits;
     mapping(address => mapping(address => bool)) public alreadyApprovedTokens;
 
-    constructor(ISwapRouter _swapRouter, Permit2 _permit2, INonfungiblePositionManager _nfpm, IERC20[] memory _tokens)
-        Proxy(_permit2)
-    {
+    constructor(
+        ISwapRouter _swapRouter,
+        Permit2 _permit2,
+        INonfungiblePositionManager _nfpm,
+        address _weth,
+        IUniversalRouter _universalRouter,
+        IERC20[] memory _tokens
+    ) Proxy(_permit2) {
+        weth = _weth;
         swapRouter = _swapRouter;
         nonfungiblePositionManager = _nfpm;
+        universalRouter = _universalRouter;
 
         for (uint8 i = 0; i < _tokens.length; ++i) {
             _tokens[i].safeApprove(address(_nfpm), type(uint256).max);
@@ -39,14 +60,34 @@ contract Uniswap is Proxy {
         alreadyApprovedTokens[address(_token)][address(nonfungiblePositionManager)] = true;
     }
 
+    function _createDeposit(address owner, uint256 tokenId) internal {
+        (,, address token0, address token1,,,, uint128 liquidity,,,,) = nonfungiblePositionManager.positions(tokenId);
+
+        // set the owner and data for position
+        // operator is msg.sender
+        deposits[tokenId] = Deposit({owner: owner, liquidity: liquidity, token0: token0, token1: token1});
+
+        emit DepositCreated(msg.sender, tokenId);
+    }
+
+    function onERC721Received(address operator, address, uint256 tokenId, bytes calldata) external returns (bytes4) {
+        _createDeposit(operator, tokenId);
+        return this.onERC721Received.selector;
+    }
+
     function swapExactInputSingle(
         uint24 _fee,
         address _tokenOut,
         uint256 _amountOutMinimum,
         uint160 _sqrtPriceLimitX96,
+        bool receiveETH,
         ISignatureTransfer.PermitTransferFrom calldata _permit,
         bytes calldata _signature
     ) public payable returns (uint256) {
+        if (receiveETH) {
+            require(_tokenOut == weth, "Token out must be WETH");
+        }
+
         permit2.permitTransferFrom(
             _permit,
             ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
@@ -54,14 +95,45 @@ contract Uniswap is Proxy {
             _signature
         );
 
-        return swapRouter.exactInputSingle(
+        uint256 amountOut = swapRouter.exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
+                fee: _fee,
                 tokenIn: _permit.permitted.token,
+                tokenOut: _tokenOut,
+                deadline: block.timestamp,
+                amountIn: _permit.permitted.amount,
+                amountOutMinimum: _amountOutMinimum,
+                sqrtPriceLimitX96: _sqrtPriceLimitX96,
+                recipient: receiveETH ? address(this) : msg.sender
+            })
+        );
+
+        if (receiveETH) {
+            IWETH9(payable(weth)).withdraw(amountOut);
+            (bool sent,) = payable(msg.sender).call{value: amountOut}("");
+            require(sent, "Failed to send Ether");
+        }
+
+        return amountOut;
+    }
+
+    function swapExactInputSingleETH(
+        uint24 _fee,
+        address _tokenOut,
+        uint256 _amountOutMinimum,
+        uint160 _sqrtPriceLimitX96,
+        uint256 _proxyFee
+    ) public payable returns (uint256) {
+        uint256 value = msg.value - _proxyFee;
+
+        return swapRouter.exactInputSingle{value: value}(
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: address(weth),
                 tokenOut: _tokenOut,
                 fee: _fee,
                 recipient: msg.sender,
                 deadline: block.timestamp,
-                amountIn: _permit.permitted.amount,
+                amountIn: value,
                 amountOutMinimum: _amountOutMinimum,
                 sqrtPriceLimitX96: _sqrtPriceLimitX96
             })
@@ -112,17 +184,10 @@ contract Uniswap is Proxy {
         ISignatureTransfer.PermitBatchTransferFrom calldata _permit,
         bytes calldata _signature
     ) external payable returns (uint256 _tokenId, uint128 liquidity, uint256 amount0, uint256 amount1) {
-        // ISignatureTransfer.SignatureTransferDetails[] memory details = new ISignatureTransfer.SignatureTransferDetails[](2);
-        //
-        // details[0].to = address(this);
-        // details[1].to = address(this);
-        // details[0].requestedAmount = _permit.permitted[0].amount;
-        // details[1].requestedAmount = _permit.permitted[1].amount;
-        uint tokensLen = _permit.permitted.length;
+        uint256 tokensLen = _permit.permitted.length;
 
         ISignatureTransfer.SignatureTransferDetails[] memory details =
             new ISignatureTransfer.SignatureTransferDetails[](tokensLen);
-
 
         details[0].to = address(this);
         details[0].requestedAmount = _permit.permitted[0].amount;
@@ -136,7 +201,7 @@ contract Uniswap is Proxy {
 
         INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
             token0: _permit.permitted[0].token,
-            token1: tokensLen > 1 ? _permit.permitted[1].token : WETH,
+            token1: tokensLen > 1 ? _permit.permitted[1].token : weth,
             fee: _fee,
             tickLower: _tickLower,
             tickUpper: _tickUpper,
@@ -150,17 +215,19 @@ contract Uniswap is Proxy {
 
         (_tokenId, liquidity, amount0, amount1) = nonfungiblePositionManager.mint{value: msg.value}(params);
 
+        _createDeposit(msg.sender, _tokenId);
+
         if (amount0 < _permit.permitted[0].amount) {
             uint256 refund0 = _permit.permitted[0].amount - amount0;
 
             IERC20(_permit.permitted[0].token).safeTransfer(msg.sender, refund0);
         }
 
-        // if (amount1 < _permit.permitted[1].amount) {
-        //     uint256 refund1 = _permit.permitted[1].amount - amount1;
-        //
-        //     IERC20(_permit.permitted[1].token).safeTransfer(msg.sender, refund1);
-        // }
+        if (tokensLen > 1 && amount1 < _permit.permitted[1].amount) {
+            uint256 refund1 = _permit.permitted[1].amount - amount1;
+
+            IERC20(_permit.permitted[1].token).safeTransfer(msg.sender, refund1);
+        }
     }
 
     /// @notice Collects the fees associated with provided liquidity
@@ -170,14 +237,15 @@ contract Uniswap is Proxy {
     /// @return amount1 The amount of fees collected in token1
     function collectAllFees(uint256 _tokenId, uint128 _amount0Max, uint128 _amount1Max)
         external
+        payable
         returns (uint256 amount0, uint256 amount1)
     {
-        // Caller must own the ERC721 position
-        // Call to safeTransfer will trigger `onERC721Received` which must return the selector else transfer will fail
-        // nonfungiblePositionManager.safeTransferFrom(msg.sender, address(this), _tokenId);
+        require(msg.sender == deposits[_tokenId].owner, "Not the owner");
 
-        // set amount0Max and amount1Max to uint256.max to collect all fees
-        // alternatively can set recipient to msg.sender and avoid another transaction in `sendToOwner`
+        if (deposits[_tokenId].liquidity == 0) {
+            nonfungiblePositionManager.transferFrom(msg.sender, address(this), _tokenId);
+        }
+
         INonfungiblePositionManager.CollectParams memory params = INonfungiblePositionManager.CollectParams({
             tokenId: _tokenId,
             recipient: msg.sender,
@@ -193,13 +261,30 @@ contract Uniswap is Proxy {
     /// @param _tokenId The id of the erc721 token
     /// @param amount0 The amount to add of token0
     /// @param amount1 The amount to add of token1
-    function increaseLiquidityCurrentRange(
+    function increaseLiquidity(
         uint256 _tokenId,
         uint256 _amountAdd0,
         uint256 _amountAdd1,
         uint256 _amount0Min,
-        uint256 _amount1Min
-    ) external returns (uint128 liquidity, uint256 amount0, uint256 amount1) {
+        uint256 _amount1Min,
+        ISignatureTransfer.PermitBatchTransferFrom calldata _permit,
+        bytes calldata _signature
+    ) external payable returns (uint128 liquidity, uint256 amount0, uint256 amount1) {
+        uint256 tokensLen = _permit.permitted.length;
+
+        ISignatureTransfer.SignatureTransferDetails[] memory details =
+            new ISignatureTransfer.SignatureTransferDetails[](tokensLen);
+
+        details[0].to = address(this);
+        details[0].requestedAmount = _permit.permitted[0].amount;
+
+        if (tokensLen > 1) {
+            details[1].to = address(this);
+            details[1].requestedAmount = _permit.permitted[1].amount;
+        }
+
+        permit2.permitTransferFrom(_permit, details, msg.sender, _signature);
+
         INonfungiblePositionManager.IncreaseLiquidityParams memory params = INonfungiblePositionManager
             .IncreaseLiquidityParams({
             tokenId: _tokenId,
@@ -210,19 +295,23 @@ contract Uniswap is Proxy {
             deadline: block.timestamp
         });
 
-        (liquidity, amount0, amount1) = nonfungiblePositionManager.increaseLiquidity(params);
+        (liquidity, amount0, amount1) = nonfungiblePositionManager.increaseLiquidity{value: msg.value}(params);
     }
 
     /// @notice A function that decreases the current liquidity by half. An example to show how to call the `decreaseLiquidity` function defined in periphery.
     /// @param _tokenId The id of the erc721 token
+    /// @param _liquidity The liquidity amount to decrease.
+    /// @param _amount0Min The id of the erc721 token
+    /// @param _amount1Min The id of the erc721 token
     /// @return amount0 The amount received back in token0
     /// @return amount1 The amount returned back in token1
-    function decreaseLiquidityInHalf(uint256 _tokenId, uint128 _liquidity, uint256 _amount0Min, uint256 _amount1Min)
+    function decreaseLiquidity(uint256 _tokenId, uint128 _liquidity, uint256 _amount0Min, uint256 _amount1Min)
         external
+        payable
         returns (uint256 amount0, uint256 amount1)
     {
-        // amount0Min and amount1Min are price slippage checks
-        // if the amount received after burning is not greater than these minimums, transaction will fail
+        require(msg.sender == deposits[_tokenId].owner, "Not the owner");
+
         INonfungiblePositionManager.DecreaseLiquidityParams memory params = INonfungiblePositionManager
             .DecreaseLiquidityParams({
             tokenId: _tokenId,
@@ -233,5 +322,44 @@ contract Uniswap is Proxy {
         });
 
         (amount0, amount1) = nonfungiblePositionManager.decreaseLiquidity(params);
+
+        _sendToOwner(_tokenId, amount0, amount1);
+    }
+
+    /// @notice Transfers funds to owner of NFT
+    /// @param _tokenId The id of the erc721
+    /// @param _amount0 The amount of token0
+    /// @param _amount1 The amount of token1
+    function _sendToOwner(uint256 _tokenId, uint256 _amount0, uint256 _amount1) internal {
+        // get owner of contract
+        address owner = deposits[_tokenId].owner;
+
+        address token0 = deposits[_tokenId].token0;
+        address token1 = deposits[_tokenId].token1;
+        // send collected fees to owner
+        IERC20(token0).safeTransfer(owner, _amount0);
+        IERC20(token1).safeTransfer(owner, _amount1);
+    }
+
+    /// @notice Transfers the NFT to the owner
+    /// @param _tokenId The id of the erc721
+    function retrieveNFT(uint256 _tokenId) external payable {
+        require(msg.sender == deposits[_tokenId].owner, "Not the owner");
+
+        nonfungiblePositionManager.safeTransferFrom(address(this), msg.sender, _tokenId);
+
+        delete deposits[_tokenId];
+    }
+
+    function execute(bytes calldata _commands, bytes[] calldata _inputs, uint256 _deadline, uint256 _fee)
+        external
+        payable
+        override
+    {
+        universalRouter.execute{value: msg.value - _fee}(_commands, _inputs, _deadline);
+    }
+
+    function execute(bytes calldata _commands, bytes[] calldata _inputs, uint256 _fee) external payable override {
+        universalRouter.execute{value: msg.value - _fee}(_commands, _inputs);
     }
 }
