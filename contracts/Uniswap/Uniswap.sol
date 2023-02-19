@@ -75,16 +75,24 @@ contract Uniswap is IERC721Receiver, Proxy {
         return this.onERC721Received.selector;
     }
 
+    /// @notice Swaps `amountIn` of one token for as much as possible of another token
+    /// @param _fee Fee of the uniswap pool. For example, 0.01% = 100
+    /// @param _tokenOut The receiving token
+    /// @param _amountOutMinimum The minimum amount expected to receive
+    /// @param _receiveETH Receive ETH or WETH
+    /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
+    /// @param _signature Signature, used by Permit2
+    /// @param _proxyFee The fee of the proxy contract
     function swapExactInputSingle(
         uint24 _fee,
         address _tokenOut,
         uint256 _amountOutMinimum,
         uint160 _sqrtPriceLimitX96,
-        bool receiveETH,
+        bool _receiveETH,
         ISignatureTransfer.PermitTransferFrom calldata _permit,
         bytes calldata _signature
     ) public payable returns (uint256) {
-        if (receiveETH) {
+        if (_receiveETH) {
             require(_tokenOut == weth, "Token out must be WETH");
         }
 
@@ -104,11 +112,11 @@ contract Uniswap is IERC721Receiver, Proxy {
                 amountIn: _permit.permitted.amount,
                 amountOutMinimum: _amountOutMinimum,
                 sqrtPriceLimitX96: _sqrtPriceLimitX96,
-                recipient: receiveETH ? address(this) : msg.sender
+                recipient: _receiveETH ? address(this) : msg.sender
             })
         );
 
-        if (receiveETH) {
+        if (_receiveETH) {
             IWETH9(payable(weth)).withdraw(amountOut);
             (bool sent,) = payable(msg.sender).call{value: amountOut}("");
             require(sent, "Failed to send Ether");
@@ -117,6 +125,15 @@ contract Uniswap is IERC721Receiver, Proxy {
         return amountOut;
     }
 
+
+    /// @notice Swaps `amountIn` of one token for as much as possible of another token
+    /// @dev One of the tokens is ETH
+    /// @param _fee Fee of the uniswap pool. For example, 0.01% = 100
+    /// @param _tokenOut The receiving token
+    /// @param _amountOutMinimum The minimum amount expected to receive
+    /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
+    /// @param _signature Signature, used by Permit2
+    /// @param _proxyFee The fee of the proxy contract
     function swapExactInputSingleETH(
         uint24 _fee,
         address _tokenOut,
@@ -140,6 +157,13 @@ contract Uniswap is IERC721Receiver, Proxy {
         );
     }
 
+    /// @notice Swaps as little as possible of one token for `amountOut` of another token
+    /// @param _fee Fee of the uniswap pool. For example, 0.01% = 100
+    /// @param _tokenOut The receiving token
+    /// @param _amountOut The exact amount expected to receive
+    /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
+    /// @param _signature Signature, used by Permit2
+    /// @return amountIn The amount of the input token
     function swapExactOutputSingle(
         uint24 _fee,
         address _tokenOut,
@@ -175,6 +199,19 @@ contract Uniswap is IERC721Receiver, Proxy {
         return amountIn;
     }
 
+    /// @notice Calls the mint function defined in periphery, mints the same amount of each token.
+    /// For this example we are providing 1000 DAI and 1000 USDC in liquidity
+    /// @param _fee Fee of the uniswap pool. For example, 0.01% = 100
+    /// @param _tickLower The lower tick in the range
+    /// @param _tickUpper The upper tick in the range
+    /// @param _amount0Min Minimum amount of the first token to receive
+    /// @param _amount1Min Minimum amount of the second token to receive
+    /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
+    /// @param _signature Signature, used by Permit2
+    /// @return tokenId The id of the newly minted ERC721
+    /// @return liquidity The amount of liquidity for the position
+    /// @return amount0 The amount of token0
+    /// @return amount1 The amount of token1
     function mintNewPosition(
         uint24 _fee,
         int24 _tickLower,
@@ -259,8 +296,12 @@ contract Uniswap is IERC721Receiver, Proxy {
     /// @notice Increases liquidity in the current range
     /// @dev Pool must be initialized already to add liquidity
     /// @param _tokenId The id of the erc721 token
-    /// @param amount0 The amount to add of token0
-    /// @param amount1 The amount to add of token1
+    /// @param _amountAdd0 The amount to add of token0
+    /// @param _amountAdd1 The amount to add of token1
+    /// @param _amount0Min Minimum amount of the first token to receive
+    /// @param _amount1Min Minimum amount of the second token to receive
+    /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
+    /// @param _signature Signature, used by Permit2
     function increaseLiquidity(
         uint256 _tokenId,
         uint256 _amountAdd0,
@@ -301,8 +342,8 @@ contract Uniswap is IERC721Receiver, Proxy {
     /// @notice A function that decreases the current liquidity by half. An example to show how to call the `decreaseLiquidity` function defined in periphery.
     /// @param _tokenId The id of the erc721 token
     /// @param _liquidity The liquidity amount to decrease.
-    /// @param _amount0Min The id of the erc721 token
-    /// @param _amount1Min The id of the erc721 token
+    /// @param _amount0Min Minimum amount of the first token to receive
+    /// @param _amount1Min Minimum amount of the second token to receive
     /// @return amount0 The amount received back in token0
     /// @return amount1 The amount returned back in token1
     function decreaseLiquidity(uint256 _tokenId, uint128 _liquidity, uint256 _amount0Min, uint256 _amount1Min)
@@ -351,6 +392,11 @@ contract Uniswap is IERC721Receiver, Proxy {
         delete deposits[_tokenId];
     }
 
+    /// @notice Executes encoded commands along with provided inputs. Reverts if deadline has expired.
+    /// @param _commands A set of concatenated commands, each 1 byte in length
+    /// @param _inputs An array of byte strings containing abi encoded inputs for each command
+    /// @param _deadline The deadline by which the transaction must be executed
+    /// @param _fee Fee of the proxy contract
     function execute(bytes calldata _commands, bytes[] calldata _inputs, uint256 _deadline, uint256 _fee)
         external
         payable
@@ -359,6 +405,10 @@ contract Uniswap is IERC721Receiver, Proxy {
         universalRouter.execute{value: msg.value - _fee}(_commands, _inputs, _deadline);
     }
 
+    /// @notice Executes encoded commands along with provided inputs. Reverts if deadline has expired.
+    /// @param _commands A set of concatenated commands, each 1 byte in length
+    /// @param _inputs An array of byte strings containing abi encoded inputs for each command
+    /// @param _fee Fee of the proxy contract
     function execute(bytes calldata _commands, bytes[] calldata _inputs, uint256 _fee) external payable override {
         universalRouter.execute{value: msg.value - _fee}(_commands, _inputs);
     }
