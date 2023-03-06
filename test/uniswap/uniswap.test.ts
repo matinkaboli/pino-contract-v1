@@ -111,7 +111,7 @@ describe('Uniswap', () => {
       const wethBalanceBefore = await weth.balanceOf(account.address);
 
       await contract.swapExactInputMultihop(swapParams);
-      // gasUsed: 338;
+      // gasUsed: 338k
 
       const wethBalanceAfter = await weth.balanceOf(account.address);
 
@@ -162,7 +162,7 @@ describe('Uniswap', () => {
 
       const path = ethers.utils.solidityPack(
         ['address', 'uint24', 'address', 'uint24', 'address'],
-        [DAI, 3000, USDC, 3000, WETH],
+        [DAI, 100, USDC, 500, WETH],
       );
 
       const swapParams = {
@@ -176,7 +176,7 @@ describe('Uniswap', () => {
       await contract.swapExactOutputMultihopETH(swapParams, {
         value: amount,
       });
-      // gasUsed: 989k
+      // gasUsed: 205k
 
       const daiBalanceAfter = await dai.balanceOf(account.address);
 
