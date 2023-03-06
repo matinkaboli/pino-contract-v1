@@ -64,11 +64,82 @@ interface IUniswap {
     /// @return amountIn The amount of the input token
     function swapExactOutputSingle(SwapExactOutputSingleParams calldata params) external payable returns (uint256);
 
+    struct SwapExactInputMultihopParams {
+        bytes path;
+        uint256 amountOutMinimum;
+        ISignatureTransfer.PermitTransferFrom permit;
+        bytes signature;
+    }
+
+    /// @notice Swaps a fixed amount of token1 for a maximum possible amount of token2 through an intermediary pool.
+    /// @param params The params necessary to swap exact input multihop
+    /// path abi.encodePacked of [address, u24, address, u24, address]
+    /// amountOutMinimum Minimum amount of token2
+    /// permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
+    /// signature Signature, used by Permit2
+    /// @return amountOut The amount of token2 received after the swap.
+    function swapExactInputMultihop(SwapExactInputMultihopParams calldata params)
+        external
+        payable
+        returns (uint256 amountOut);
+
+    struct SwapExactInputMultihopETHParams {
+        bytes path;
+        uint256 amountOutMinimum;
+        uint256 proxyFee;
+    }
+
+    /// @notice Swaps a fixed amount of ETH for a maximum possible amount of token2 through an intermediary pool.
+    /// @param params The params necessary to swap exact input multihop
+    /// path abi.encodePacked of [WETH, u24, address, u24, address]
+    /// amountOutMinimum Minimum amount of token2
+    /// @return amountOut The amount of token2 received after the swap.
+    function swapExactInputMultihopETH(SwapExactInputMultihopETHParams calldata params)
+        external
+        payable
+        returns (uint256 amountOut);
+
+    struct SwapExactOutputMultihopParams {
+        bytes path;
+        uint256 amountOut;
+        ISignatureTransfer.PermitTransferFrom permit;
+        bytes signature;
+    }
+
+    /// @notice Swaps a minimum possible amount of token1 for a fixed amount of token2 through an intermediary pool.
+    /// @param params The params necessary to swap exact output multihop
+    /// path abi.encodePacked of [address, u24, address, u24, address]
+    /// amountOut The desired amount of token2.
+    /// permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
+    /// signature Signature, used by Permit2
+    /// @return amountIn The amountIn of token1 actually spent to receive the desired amountOut.
+    function swapExactOutputMultihop(SwapExactOutputMultihopParams calldata params)
+        external
+        payable
+        returns (uint256 amountIn);
+
+    struct SwapExactOutputMultihopETHParams {
+        bytes path;
+        uint256 amountOut;
+        uint256 proxyFee;
+    }
+
+    /// @notice Swaps a minimum possible amount of ETH for a fixed amount of token2 through an intermediary pool.
+    /// @param params The params necessary to swap exact output multihop
+    /// path abi.encodePacked of [address, u24, address, u24, WETH]
+    /// amountOut The desired amount of token2.
+    /// proxyFee Fee of the proxy contract
+    /// @return amountIn The amountIn of token1 actually spent to receive the desired amountOut.
+    function swapExactOutputMultihopETH(SwapExactOutputMultihopETHParams calldata params)
+        external
+        payable
+        returns (uint256 amountIn);
+
     struct MintParams {
         uint24 fee;
         int24 tickLower;
         int24 tickUpper;
-        uint proxyFee;
+        uint256 proxyFee;
         uint256 amount0Min;
         uint256 amount1Min;
         address token0;
@@ -114,7 +185,7 @@ interface IUniswap {
 
     struct IncreaseLiquidityParams {
         uint256 tokenId;
-        uint proxyFee;
+        uint256 proxyFee;
         uint256 amountAdd0;
         uint256 amountAdd1;
         uint256 amount0Min;

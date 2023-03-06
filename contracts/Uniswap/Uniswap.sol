@@ -2,7 +2,6 @@
 pragma solidity ^0.8.18;
 pragma abicoder v2;
 
-import "hardhat/console.sol";
 import "../Proxy.sol";
 import "./IUniswap.sol";
 import "../interfaces/IWETH9.sol";
@@ -55,7 +54,11 @@ contract Uniswap is IERC721Receiver, IUniswap, Proxy {
     }
 
     // @notice Implementing `onERC721Received` so this contract can receive custody of erc721 tokens
-    function onERC721Received(address operator, address, uint256 tokenId, bytes calldata) external override returns (bytes4) {
+    function onERC721Received(address operator, address, uint256 tokenId, bytes calldata)
+        external
+        override
+        returns (bytes4)
+    {
         _createDeposit(operator, tokenId);
 
         return this.onERC721Received.selector;
@@ -173,6 +176,112 @@ contract Uniswap is IERC721Receiver, IUniswap, Proxy {
         }
 
         return amountIn;
+    }
+
+    /// @inheritdoc IUniswap
+    function swapExactInputMultihop(SwapExactInputMultihopParams calldata params)
+        external
+        payable
+        returns (uint256 amountOut)
+    {
+        permit2.permitTransferFrom(
+            params.permit,
+            ISignatureTransfer.SignatureTransferDetails({
+                to: address(this),
+                requestedAmount: params.permit.permitted.amount
+            }),
+            msg.sender,
+            params.signature
+        );
+
+        ISwapRouter.ExactInputParams memory swapParams = ISwapRouter.ExactInputParams({
+            path: params.path,
+            recipient: msg.sender,
+            deadline: block.timestamp,
+            amountIn: params.permit.permitted.amount,
+            amountOutMinimum: params.amountOutMinimum
+        });
+
+        amountOut = swapRouter.exactInput(swapParams);
+    }
+
+    /// @inheritdoc IUniswap
+    function swapExactInputMultihopETH(SwapExactInputMultihopETHParams calldata params)
+        external
+        payable
+        returns (uint256 amountOut)
+    {
+        uint256 value = msg.value - params.proxyFee;
+
+        IWETH9(weth).deposit{value: value}();
+
+        ISwapRouter.ExactInputParams memory swapParams = ISwapRouter.ExactInputParams({
+            path: params.path,
+            recipient: msg.sender,
+            deadline: block.timestamp,
+            amountIn: value,
+            amountOutMinimum: params.amountOutMinimum
+        });
+
+        amountOut = swapRouter.exactInput(swapParams);
+    }
+
+    /// @inheritdoc IUniswap
+    function swapExactOutputMultihop(SwapExactOutputMultihopParams calldata params)
+        external
+        payable
+        returns (uint256 amountIn)
+    {
+        permit2.permitTransferFrom(
+            params.permit,
+            ISignatureTransfer.SignatureTransferDetails({
+                to: address(this),
+                requestedAmount: params.permit.permitted.amount
+            }),
+            msg.sender,
+            params.signature
+        );
+
+        ISwapRouter.ExactOutputParams memory swapParams = ISwapRouter.ExactOutputParams({
+            path: params.path,
+            recipient: msg.sender,
+            deadline: block.timestamp,
+            amountOut: params.amountOut,
+            amountInMaximum: params.permit.permitted.amount
+        });
+
+        amountIn = swapRouter.exactOutput(swapParams);
+
+        if (amountIn < params.permit.permitted.amount) {
+            IERC20(params.permit.permitted.token).safeTransfer(msg.sender, params.permit.permitted.amount - amountIn);
+        }
+    }
+
+    /// @inheritdoc IUniswap
+    function swapExactOutputMultihopETH(SwapExactOutputMultihopETHParams calldata params)
+        external
+        payable
+        returns (uint256 amountIn)
+    {
+        uint256 value = msg.value - params.proxyFee;
+        IWETH9(weth).deposit{value: value}();
+
+        ISwapRouter.ExactOutputParams memory swapParams = ISwapRouter.ExactOutputParams({
+            path: params.path,
+            recipient: msg.sender,
+            deadline: block.timestamp,
+            amountOut: params.amountOut,
+            amountInMaximum: value
+        });
+
+        amountIn = swapRouter.exactOutput(swapParams);
+
+        if (amountIn < value) {
+            IWETH9(weth).withdraw(value - amountIn);
+
+            (bool success,) = payable(msg.sender).call{value: value - amountIn}("");
+            require(success, "Failed to send back eth");
+        }
     }
 
     /// @inheritdoc IUniswap
@@ -299,7 +408,7 @@ contract Uniswap is IERC721Receiver, IUniswap, Proxy {
             deadline: block.timestamp
         });
 
-        uint value = msg.value - params.proxyFee;
+        uint256 value = msg.value - params.proxyFee;
 
         (liquidity, amount0, amount1) = nfpm.increaseLiquidity{value: value}(increaseParams);
     }

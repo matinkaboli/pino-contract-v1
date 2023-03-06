@@ -82,6 +82,136 @@ describe('Uniswap', () => {
     await weth.approve(PERMIT2_ADDRESS, constants.MaxUint256);
   });
 
+  describe('Swap multihop', () => {
+    it('Should swap DAI > USDC > WETH exact input', async () => {
+      const { sign, contract } = await loadFixture(deploy);
+
+      const amount = 500n * 10n ** 18n;
+
+      const { permit, signature } = await sign(
+        {
+          amount,
+          token: DAI,
+        },
+        contract.address,
+      );
+
+      const path = ethers.utils.solidityPack(
+        ['address', 'uint24', 'address', 'uint24', 'address'],
+        [DAI, 3000, USDC, 3000, WETH],
+      );
+
+      const swapParams = {
+        path,
+        amountOutMinimum: 0,
+        permit,
+        signature,
+      };
+
+      const wethBalanceBefore = await weth.balanceOf(account.address);
+
+      await contract.swapExactInputMultihop(swapParams);
+      // gasUsed: 338;
+
+      const wethBalanceAfter = await weth.balanceOf(account.address);
+
+      expect(wethBalanceAfter).to.gt(wethBalanceBefore);
+    });
+
+    it('Should swap DAI > USDC > WETH exact output', async () => {
+      const { sign, contract } = await loadFixture(deploy);
+
+      const amount = 500n * 10n ** 18n;
+      const amountOut = 1n * 10n ** 17n;
+
+      const { permit, signature } = await sign(
+        {
+          amount,
+          token: DAI,
+        },
+        contract.address,
+      );
+
+      const path = ethers.utils.solidityPack(
+        ['address', 'uint24', 'address', 'uint24', 'address'],
+        [WETH, 3000, USDC, 3000, DAI],
+      );
+
+      const swapParams = {
+        path,
+        amountOut,
+        permit,
+        signature,
+      };
+
+      const wethBalanceBefore = await weth.balanceOf(account.address);
+
+      await contract.swapExactOutputMultihop(swapParams);
+      // gasUsed: 305k
+
+      const wethBalanceAfter = await weth.balanceOf(account.address);
+
+      expect(wethBalanceAfter).to.gt(wethBalanceBefore);
+    });
+
+    it('Should swap ETH > USDC > DAI exact output ETH', async () => {
+      const { contract } = await loadFixture(deploy);
+
+      const amount = 1n * 10n ** 18n;
+      const amountOut = 1000n * 10n ** 18n;
+
+      const path = ethers.utils.solidityPack(
+        ['address', 'uint24', 'address', 'uint24', 'address'],
+        [DAI, 3000, USDC, 3000, WETH],
+      );
+
+      const swapParams = {
+        path,
+        amountOut,
+        proxyFee: 0,
+      };
+
+      const daiBalanceBefore = await dai.balanceOf(account.address);
+
+      await contract.swapExactOutputMultihopETH(swapParams, {
+        value: amount,
+      });
+      // gasUsed: 989k
+
+      const daiBalanceAfter = await dai.balanceOf(account.address);
+
+      expect(daiBalanceAfter).to.gt(daiBalanceBefore);
+    });
+
+    it('Should swap ETH > USDC > DAI exact input ETH', async () => {
+      const { contract } = await loadFixture(deploy);
+
+      const amount = 1n * 10n ** 18n;
+
+      const path = ethers.utils.solidityPack(
+        ['address', 'uint24', 'address', 'uint24', 'address'],
+        [WETH, 3000, USDC, 3000, DAI],
+      );
+
+      const swapParams = {
+        path,
+        amountOutMinimum: 0,
+        proxyFee: 0,
+      };
+
+      const daiBalanceBefore = await dai.balanceOf(account.address);
+
+      await contract.swapExactInputMultihopETH(swapParams, {
+        value: amount,
+      });
+      // gasUsed: 989k
+
+      const daiBalanceAfter = await dai.balanceOf(account.address);
+
+      expect(daiBalanceAfter).to.gt(daiBalanceBefore);
+    });
+  });
+
   describe('Swap ERC20 to ERC20', () => {
     it('Should swap USDC to DAI using (exact input)', async () => {
       const { contract, sign } = await loadFixture(deploy);
