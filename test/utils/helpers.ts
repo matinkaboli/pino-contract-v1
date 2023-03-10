@@ -73,3 +73,8 @@ export const impersonate = async (address: string) => {
 
   return whale;
 };
+
+export const toDecimals = (
+  amount: BigInt,
+  decimals: BigInt,
+): BigInt => amount * 10n ** decimals;
