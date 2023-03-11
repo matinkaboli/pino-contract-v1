@@ -1,4 +1,3 @@
-// LendingPool
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import { Contract, constants } from 'ethers';
@@ -19,11 +18,11 @@ import {
   A_WETH,
   tokens,
   aTokens,
+  WHALE3POOL,
 } from '../utils/addresses';
 import { IERC20 } from '../../typechain-types';
 import { impersonate, signer } from '../utils/helpers';
 
-const WHALE = '0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8';
 const LENDING_POOL = '0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9';
 const WETH_GATEWAY = '0xEFFC18fC3b7eb8E676dac549E0c693ad50D1Ce31';
 
@@ -61,7 +60,7 @@ describe('Aave - LendingPool', () => {
   };
 
   before(async () => {
-    const whale = await impersonate(WHALE);
+    const whale = await impersonate(WHALE3POOL);
     [account, otherAccount] = await ethers.getSigners();
 
     dai = await ethers.getContractAt('IERC20', DAI);

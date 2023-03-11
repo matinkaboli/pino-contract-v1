@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.0 <0.9.0;
+pragma solidity ^0.8.18;
 
+import "../Proxy.sol";
 import "../interfaces/IWETH9.sol";
-import "../interfaces/Permit2.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface IComet is IERC20 {
@@ -18,24 +17,20 @@ interface IComet is IERC20 {
 /// @author Matin Kaboli
 /// @notice Supplies and Withdraws ERC20 and ETH tokens and helps with WETH wrapping
 /// @dev This contract uses Permit2
-contract Comet is Ownable {
+contract Comet is Proxy {
     using SafeERC20 for IERC20;
 
     address public weth;
     address public comet;
-    address public immutable permit2;
     mapping(address => mapping(address => bool)) private alreadyApprovedTokens;
-
-    error FailedToSendEther();
 
     /// @notice Receives cUSDCv3 and approves Compoound tokens to it
     /// @param _comet cUSDCv3 address, used for supplying and withdrawing tokens
     /// @param _weth WETH address used in Comet protocol
     /// @param _tokens List of ERC20 tokens used in Compound V3
-    constructor(address _comet, address _weth, address _permit2, address[] memory _tokens) {
+    constructor(address _comet, address _weth, Permit2 _permit2, address[] memory _tokens) Proxy(_permit2) {
         weth = _weth;
         comet = _comet;
-        permit2 = _permit2;
 
         for (uint8 i = 0; i < _tokens.length; i += 1) {
             IERC20(_tokens[i]).safeApprove(_comet, type(uint256).max);
@@ -54,7 +49,7 @@ contract Comet is Ownable {
     /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
     /// @param _signature Signature, used by Permit2
     function supply(ISignatureTransfer.PermitTransferFrom calldata _permit, bytes calldata _signature) public payable {
-        Permit2(permit2).permitTransferFrom(
+        permit2.permitTransferFrom(
             _permit,
             ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
             msg.sender,
@@ -91,13 +86,4 @@ contract Comet is Ownable {
         (bool success,) = msg.sender.call{value: _amount}("");
         if (!success) revert FailedToSendEther();
     }
-
-    /// @notice Withdraws fees and transfers them to owner
-    function withdrawAdmin() public onlyOwner {
-        require(address(this).balance > 0);
-
-        payable(owner()).transfer(address(this).balance);
-    }
-
-    receive() external payable {}
 }

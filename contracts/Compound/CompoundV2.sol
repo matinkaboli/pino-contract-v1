@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.0 <0.9.0;
+pragma solidity ^0.8.18;
 
-import "../interfaces/Permit2.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "../Proxy.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface ICToken is IERC20 {
@@ -16,21 +15,16 @@ interface ICToken is IERC20 {
 /// @author Matin Kaboli
 /// @notice Supplies and Withdraws ERC20 and ETH tokens and helps with WETH wrapping
 /// @dev This contract uses Permit2
-contract Compound is Ownable {
+contract Compound is Proxy {
     using SafeERC20 for IERC20;
 
-    address public immutable permit2;
     mapping(address => mapping(address => bool)) private alreadyApprovedTokens;
-
-    error FailedToSendEther();
 
     /// @notice Receives tokens and cTokens and approves them
     /// @param _permit2 Address of Permit2 contract
     /// @param _tokens List of ERC20 tokens used in Compound V2
     /// @param _cTokens List of ERC20 cTokens used in Compound V2
-    constructor(address _permit2, address[] memory _tokens, address[] memory _cTokens) {
-        permit2 = _permit2;
-
+    constructor(Permit2 _permit2, address[] memory _tokens, address[] memory _cTokens) Proxy(_permit2) {
         for (uint8 i = 0; i < _tokens.length; i += 1) {
             IERC20(_tokens[i]).safeApprove(_cTokens[i], type(uint256).max);
 
@@ -54,7 +48,7 @@ contract Compound is Ownable {
         public
         payable
     {
-        Permit2(permit2).permitTransferFrom(
+        permit2.permitTransferFrom(
             _permit,
             ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
             msg.sender,
@@ -95,7 +89,7 @@ contract Compound is Ownable {
         public
         payable
     {
-        Permit2(permit2).permitTransferFrom(
+        permit2.permitTransferFrom(
             _permit,
             ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
             msg.sender,
@@ -118,7 +112,7 @@ contract Compound is Ownable {
         public
         payable
     {
-        Permit2(permit2).permitTransferFrom(
+        permit2.permitTransferFrom(
             _permit,
             ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
             msg.sender,
@@ -134,13 +128,4 @@ contract Compound is Ownable {
         (bool success,) = msg.sender.call{value: balanceAfter - balanceBefore}("");
         if (!success) revert FailedToSendEther();
     }
-
-    /// @notice Withdraws fees and transfers them to owner
-    function withdrawAdmin() public onlyOwner {
-        require(address(this).balance > 0);
-
-        payable(owner()).transfer(address(this).balance);
-    }
-
-    receive() external payable {}
 }

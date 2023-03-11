@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.0 <0.9.0;
+pragma solidity ^0.8.18;
 
-import "./Proxy.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "./CurvePool.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface Pool {
@@ -16,11 +15,11 @@ interface Pool {
 /// @author Matin Kaboli
 /// @notice Add/Remove liquidity, and exchange tokens in a pool
 /// @dev works for different pools, but use with caution (tested only for StableSwap)
-contract Curve3Token is Proxy {
+contract Curve3Token is CurvePool {
     using SafeERC20 for IERC20;
 
-    constructor(address _pool, address _permit2, address[] memory _tokens, address _token, uint8 _ethIndex)
-        Proxy(_pool, _permit2, _tokens, _token, _ethIndex)
+    constructor(address _pool, Permit2 _permit2, address[] memory _tokens, address _token, uint8 _ethIndex)
+        CurvePool(_pool, _permit2, _tokens, _token, _ethIndex)
     {}
 
     /// @notice Adds liquidity to a pool
@@ -44,7 +43,7 @@ contract Curve3Token is Proxy {
             details[i].requestedAmount = _permit.permitted[i].amount;
         }
 
-        Permit2(permit2).permitTransferFrom(_permit, details, msg.sender, _signature);
+        permit2.permitTransferFrom(_permit, details, msg.sender, _signature);
 
         if (ethIndex != 100) {
             ethValue = msg.value - _fee;
@@ -66,7 +65,7 @@ contract Curve3Token is Proxy {
         bytes calldata _signature,
         uint256[3] memory minAmounts
     ) public payable {
-        Permit2(permit2).permitTransferFrom(
+        permit2.permitTransferFrom(
             _permit,
             ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
             msg.sender,
@@ -105,7 +104,7 @@ contract Curve3Token is Proxy {
             i = 2;
         }
 
-        Permit2(permit2).permitTransferFrom(
+        permit2.permitTransferFrom(
             _permit,
             ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
             msg.sender,
@@ -131,7 +130,7 @@ contract Curve3Token is Proxy {
         uint256 _i,
         uint256 min_amount
     ) public payable {
-        Permit2(permit2).permitTransferFrom(
+        permit2.permitTransferFrom(
             _permit,
             ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
             msg.sender,

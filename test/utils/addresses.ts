@@ -1,4 +1,3 @@
-// Aave addresses
 export const BUSD = '0x4Fabb145d64652a948d72533023f6E7A623C7C53';
 export const A_BUSD = '0xA361718326c15715591c299427c62086F69923D9';
 export const VD_BUSD = '0xbA429f7011c9fa04cDd46a2Da24dc0FF0aC6099c';
@@ -183,6 +182,9 @@ export const C_REP = '0x158079Ee67Fce2f58472A96584A73C7Ab9AC95c1';
 export const C_SAI = '0xF5DCe57282A584D2746FaF1593d3121Fcac444dC';
 
 export const C_SUSHI = '0x4B0181102A0112A2ef11AbEE5563bb4a3176c9d7';
+
+export const WHALE3POOL =
+  '0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8';
 
 export const tokens = [
   BUSD,

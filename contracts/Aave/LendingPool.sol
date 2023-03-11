@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.0 <0.9.0;
+pragma solidity ^0.8.18;
 
-import "../interfaces/Permit2.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "../Proxy.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface ILendingPool {
@@ -19,12 +18,11 @@ interface IWethGateway {
 /// @author Matin Kaboli
 /// @notice Deposits and Withdraws ERC20 tokens to the lending pool
 /// @dev This contract uses Permit2
-contract LendingPool is Ownable {
+contract LendingPool is Proxy {
     using SafeERC20 for IERC20;
 
     address public lendingPool;
     address public wethGateway;
-    address public immutable permit2;
     mapping(address => mapping(address => bool)) private alreadyApprovedTokens;
 
     /// @notice Sets LendingPool address and approves assets and aTokens to it
@@ -36,11 +34,10 @@ contract LendingPool is Ownable {
     constructor(
         address _lendingPool,
         address _wethGateway,
-        address _permit2,
+        Permit2 _permit2,
         address[] memory _tokens,
         address[] memory _aTokens
-    ) {
-        permit2 = _permit2;
+    ) Proxy(_permit2) {
         lendingPool = _lendingPool;
         wethGateway = _wethGateway;
 
@@ -92,7 +89,7 @@ contract LendingPool is Ownable {
         public
         payable
     {
-        Permit2(permit2).permitTransferFrom(
+        permit2.permitTransferFrom(
             _permit,
             ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
             msg.sender,
@@ -121,7 +118,7 @@ contract LendingPool is Ownable {
         public
         payable
     {
-        Permit2(permit2).permitTransferFrom(
+        permit2.permitTransferFrom(
             _permit,
             ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
             msg.sender,
@@ -138,7 +135,7 @@ contract LendingPool is Ownable {
         public
         payable
     {
-        Permit2(permit2).permitTransferFrom(
+        permit2.permitTransferFrom(
             _permit,
             ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
             msg.sender,
@@ -147,13 +144,4 @@ contract LendingPool is Ownable {
 
         IWethGateway(wethGateway).withdrawETH(lendingPool, _permit.permitted.amount, msg.sender);
     }
-
-    /// @notice Withdraws fees and transfers them to owner
-    function withdrawAdmin() public onlyOwner {
-        require(address(this).balance > 0);
-
-        payable(owner()).transfer(address(this).balance);
-    }
-
-    receive() external payable {}
 }

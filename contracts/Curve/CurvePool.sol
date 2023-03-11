@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.8.0 <0.9.0;
+pragma solidity ^0.8.18;
 
+import "../Proxy.sol";
 import "../interfaces/Permit2.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title Curve proxy contract
 /// @author Matin Kaboli
 /// @notice Add/Remove liquidity, and exchange tokens in a pool
-contract Proxy is Ownable {
+contract CurvePool is Proxy {
     using SafeERC20 for IERC20;
 
     address[] public tokens;
     address public immutable pool;
     address public immutable token;
-    address public immutable permit2;
     uint8 public immutable ethIndex;
 
     /// @notice Receives ERC20 tokens and Curve pool address and saves them
@@ -22,11 +21,12 @@ contract Proxy is Ownable {
     /// @param _tokens Addresses of ERC20 tokens inside the _pool
     /// @param _token Address of pool token
     /// @param _ethIndex Index of ETH in the pool (100 if ETH does not exist in the pool)
-    constructor(address _pool, address _permit2, address[] memory _tokens, address _token, uint8 _ethIndex) {
+    constructor(address _pool, Permit2 _permit2, address[] memory _tokens, address _token, uint8 _ethIndex)
+        Proxy(_permit2)
+    {
         pool = _pool;
         token = _token;
         tokens = _tokens;
-        permit2 = _permit2;
         ethIndex = _ethIndex;
 
         for (uint8 i = 0; i < _tokens.length; i += 1) {
@@ -70,13 +70,4 @@ contract Proxy is Ownable {
             IERC20(tokens[_i]).safeTransferFrom(msg.sender, address(this), _amount);
         }
     }
-
-    /// @notice Withdraws fees and transfers them to owner
-    function withdrawAdmin() public onlyOwner {
-        require(address(this).balance > 0);
-
-        payable(owner()).transfer(address(this).balance);
-    }
-
-    receive() external payable {}
 }
