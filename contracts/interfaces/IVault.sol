@@ -17,22 +17,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 pragma experimental ABIEncoderV2;
 pragma solidity >=0.7.0 <0.9.0;
 
-// library BalancerUtils {
-//     enum JoinKind {
-//         INIT,
-//         EXACT_TOKENS_IN_FOR_BPT_OUT,
-//         TOKEN_IN_FOR_EXACT_BPT_OUT,
-//         ALL_TOKENS_IN_FOR_EXACT_BPT_OUT
-//     }
-//
-//     function asIAsset(IERC20[] memory tokens) public pure returns (IAsset[] memory assets) {
-//         // solhint-disable-next-line no-inline-assembly
-//         assembly {
-//             assets := tokens
-//         }
-//     }
-// }
-
 /**
  * @dev This is an empty interface used to represent either ERC20-conforming token contracts or ETH (using the zero
  * address sentinel value). We're just relying on the fact that `interface` can be used to declare new address-like
@@ -45,6 +29,11 @@ interface IAsset {
 }
 
 interface IVault {
+    // There are two swap kinds:
+    //  - 'given in' swaps, where the amount of tokens in (sent to the Pool) is known, and the Pool determines (via the
+    // `onSwap` hook) the amount of tokens out (to send to the recipient).
+    //  - 'given out' swaps, where the amount of tokens out (received from the Pool) is known, and the Pool determines
+    // (via the `onSwap` hook) the amount of tokens in (to receive from the sender).
     enum SwapKind {
         GIVEN_IN,
         GIVEN_OUT
@@ -104,10 +93,6 @@ interface IVault {
         external
         view
         returns (IERC20[] memory tokens, uint256[] memory balances, uint256 lastChangeBlock);
-
-    function queryJoin(bytes32 poolId, address sender, address recipient, JoinPoolRequest memory request)
-        external
-        returns (uint256 bptOut, uint256[] memory amountsIn);
 
     /**
      * @dev Called by users to exit a Pool, which transfers tokens from the Pool's balance to `recipient`. This will

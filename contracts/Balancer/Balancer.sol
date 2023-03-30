@@ -140,4 +140,45 @@ contract Balancer is Proxy {
 
         vault.joinPool{value: msg.value - _proxyFee}(_poolId, address(this), msg.sender, poolRequest);
     }
+
+    /// @notice Swaps a token for another token in a pool
+    /// @param _poolId Pool id
+    /// @param _assetOut Expected token out address
+    /// @param _limit The minimum amount of expected token out
+    /// @param _userData User data structure, can be left empty
+    /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
+    /// @param _signature Signature, used by Permit2
+    function swap(
+        bytes32 _poolId,
+        IAsset _assetOut,
+        uint256 _limit,
+        bytes calldata _userData,
+        ISignatureTransfer.PermitTransferFrom calldata _permit,
+        bytes calldata _signature
+    ) external payable {
+        permit2.permitTransferFrom(
+            _permit,
+            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
+            msg.sender,
+            _signature
+        );
+
+        IVault.SingleSwap memory singleSwap = IVault.SingleSwap({
+            poolId: _poolId,
+            kind: IVault.SwapKind.GIVEN_IN,
+            assetIn: IAsset(_permit.permitted.token),
+            assetOut: _assetOut,
+            amount: _permit.permitted.amount,
+            userData: _userData
+        });
+
+        IVault.FundManagement memory funds = IVault.FundManagement({
+            sender: address(this),
+            fromInternalBalance: false,
+            recipient: payable(msg.sender),
+            toInternalBalance: false
+        });
+
+        vault.swap(singleSwap, funds, _limit, block.timestamp);
+    }
 }
