@@ -181,4 +181,33 @@ contract Balancer is Proxy {
 
         vault.swap(singleSwap, funds, _limit, block.timestamp);
     }
+
+    /// @notice Swaps ETH for another token in a pool
+    /// @param _poolId Pool id
+    /// @param _assetOut Expected token out address
+    /// @param _limit The minimum amount of expected token out
+    /// @param _userData User data structure, can be left empty
+    /// @param _proxyFee Fee of the proxy contract
+    function swapETH(bytes32 _poolId, IAsset _assetOut, uint256 _limit, bytes calldata _userData, uint256 _proxyFee)
+        external
+        payable
+    {
+        IVault.SingleSwap memory singleSwap = IVault.SingleSwap({
+            poolId: _poolId,
+            kind: IVault.SwapKind.GIVEN_IN,
+            assetIn: IAsset(address(0)),
+            assetOut: _assetOut,
+            amount: msg.value - _proxyFee,
+            userData: _userData
+        });
+
+        IVault.FundManagement memory funds = IVault.FundManagement({
+            sender: address(this),
+            fromInternalBalance: false,
+            recipient: payable(msg.sender),
+            toInternalBalance: false
+        });
+
+        vault.swap{value: msg.value - _proxyFee}(singleSwap, funds, _limit, block.timestamp);
+    }
 }

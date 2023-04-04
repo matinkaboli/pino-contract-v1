@@ -23,6 +23,7 @@ describe('Balancer', () => {
   let usdc: IERC20;
   let usdt: IERC20;
   let weth: IWETH9;
+  let wstETH: IERC20;
   let account: SignerWithAddress;
 
   const deploy = async () => {
@@ -49,6 +50,7 @@ describe('Balancer', () => {
     usdc = await ethers.getContractAt('IERC20', USDC);
     usdt = await ethers.getContractAt('IERC20', USDT);
     weth = await ethers.getContractAt('IWETH9', WETH);
+    wstETH = await ethers.getContractAt('IERC20', WSTETH);
 
     const amount = 5000n * 10n ** 6n;
     const ethAmount = 3n * 10n ** 18n;
@@ -300,6 +302,33 @@ describe('Balancer', () => {
       const accountBalanceAfter = await account.getBalance();
 
       expect(accountBalanceAfter).to.gt(accountBalanceBefore);
+    });
+
+    it('Should swap ETH to wstETH', async () => {
+      const { contract } = await loadFixture(deploy);
+
+      const amount = 1n * 10n ** 18n;
+      const poolId =
+        '0x32296969ef14eb0c6d29669c550d4a0449130230000200000000000000000080';
+
+      const wstBalanceBefore = await wstETH.balanceOf(
+        account.address,
+      );
+
+      await contract.swapETH(
+        poolId,
+        WSTETH,
+        0,
+        ethers.utils.toUtf8Bytes(''),
+        0,
+        {
+          value: amount,
+        },
+      );
+
+      const wstBalanceAfter = await wstETH.balanceOf(account.address);
+
+      expect(wstBalanceAfter).to.gt(wstBalanceBefore);
     });
   });
 });

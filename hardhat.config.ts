@@ -27,7 +27,7 @@ const config: HardhatUserConfig = {
       allowUnlimitedContractSize: true,
       forking: {
         url: 'https://eth-mainnet.g.alchemy.com/v2/xrxGy3kXIcTKv3wH2k18tAuh26iC-HxG',
-        blockNumber: 16756773,
+        blockNumber: 16978420,
       },
     },
   },
