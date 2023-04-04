@@ -93,7 +93,7 @@ describe('Balancer', () => {
     });
   });
 
-  describe('Pool Interactions', () => {
+  describe('Joins', () => {
     it('Should join ETH_wstETH pool', async () => {
       const { contract } = await loadFixture(deploy);
 
@@ -186,6 +186,120 @@ describe('Balancer', () => {
       expect(await poolContract.balanceOf(account.address)).to.gt(
         bptAmountBefore,
       );
+    });
+
+    it('Should join Balancer Boosted Aave USD pool', async () => {
+      const { contract, multiSign } = await loadFixture(deploy);
+
+      const poolId =
+        '0xa13a9247ea42d743238089903570127dda72fe4400000000000000000000035d';
+
+      const amount0 = 100n * 10n ** 6n;
+      const amount1 = 100n * 10n ** 18n;
+
+      const maxAmountsIn = [amount0, amount0, amount1];
+
+      const parameterTypes = ['uint256', 'uint256[]', 'uint256'];
+      const parameterValues = [1, maxAmountsIn, 0];
+      const userData = ethers.utils.defaultAbiCoder.encode(
+        parameterTypes,
+        parameterValues,
+      );
+
+      const { permit, signature } = await multiSign(
+        [
+          {
+            token: USDT,
+            amount: amount0,
+          },
+          {
+            token: USDC,
+            amount: amount0,
+          },
+          {
+            token: DAI,
+            amount: amount1,
+          },
+        ],
+        contract.address,
+      );
+
+      const BB_A_USDT = '0x2F4eb100552ef93840d5aDC30560E5513DFfFACb';
+      const BB_A_USDC = '0x82698aeCc9E28e9Bb27608Bd52cF57f704BD1B83';
+      const BB_A_USD = '0xA13a9247ea42D743238089903570127DdA72fE44';
+      const BB_A_DAI = '0xae37D54Ae477268B9997d4161B96b8200755935c';
+
+      await contract.joinPool(
+        poolId,
+        userData,
+        [BB_A_USDT, BB_A_USDC, BB_A_USD, BB_A_DAI],
+        maxAmountsIn,
+        0,
+        permit,
+        signature,
+      );
+    });
+  });
+
+  describe('Swaps', () => {
+    it('Should swap USDC to WETH', async () => {
+      const { contract, sign } = await loadFixture(deploy);
+
+      const poolId =
+        '0x96646936b91d6b9d7d0c47c496afbf3d6ec7b6f8000200000000000000000019';
+
+      const { permit, signature } = await sign(
+        {
+          token: USDC,
+          amount: 2000n * 10n ** 6n,
+        },
+        contract.address,
+      );
+
+      const wethBalanceBefore = await weth.balanceOf(account.address);
+
+      await contract.swap(
+        poolId,
+        WETH,
+        0,
+        ethers.utils.toUtf8Bytes(''),
+        permit,
+        signature,
+      );
+
+      const wethBalanceAfter = await weth.balanceOf(account.address);
+
+      expect(wethBalanceAfter).to.gt(wethBalanceBefore);
+    });
+
+    it('Should swap USDC to ETH', async () => {
+      const { contract, sign } = await loadFixture(deploy);
+
+      const poolId =
+        '0x96646936b91d6b9d7d0c47c496afbf3d6ec7b6f8000200000000000000000019';
+
+      const { permit, signature } = await sign(
+        {
+          token: USDC,
+          amount: 2000n * 10n ** 6n,
+        },
+        contract.address,
+      );
+
+      const accountBalanceBefore = await account.getBalance();
+
+      await contract.swap(
+        poolId,
+        ETH,
+        0,
+        ethers.utils.toUtf8Bytes(''),
+        permit,
+        signature,
+      );
+
+      const accountBalanceAfter = await account.getBalance();
+
+      expect(accountBalanceAfter).to.gt(accountBalanceBefore);
     });
   });
 });
