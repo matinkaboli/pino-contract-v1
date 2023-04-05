@@ -141,6 +141,31 @@ contract Balancer is Proxy {
         vault.joinPool{value: msg.value - _proxyFee}(_poolId, address(this), msg.sender, poolRequest);
     }
 
+    function exitPool(
+        bytes32 _poolId,
+        IAsset[] calldata _assets,
+        uint256[] calldata _minAmountsOut,
+        bytes calldata _userData,
+        ISignatureTransfer.PermitTransferFrom calldata _permit,
+        bytes calldata _signature
+    ) external payable {
+        permit2.permitTransferFrom(
+            _permit,
+            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
+            msg.sender,
+            _signature
+        );
+
+        IVault.ExitPoolRequest memory exitRequest = IVault.ExitPoolRequest({
+            assets: _assets,
+            userData: _userData,
+            toInternalBalance: false,
+            minAmountsOut: _minAmountsOut
+        });
+
+        vault.exitPool(_poolId, address(this), payable(msg.sender), exitRequest);
+    }
+
     /// @notice Swaps a token for another token in a pool
     /// @param _poolId Pool id
     /// @param _assetOut Expected token out address
@@ -209,5 +234,48 @@ contract Balancer is Proxy {
         });
 
         vault.swap{value: msg.value - _proxyFee}(singleSwap, funds, _limit, block.timestamp);
+    }
+
+    function batchSwap(
+        bytes32 _poolId,
+        IAsset _assetOut,
+        uint256 _limit,
+        bytes calldata _userData,
+        ISignatureTransfer.PermitBatchTransferFrom calldata _permit,
+        bytes calldata _signature
+    ) external payable {
+        uint256 permitLength = _permit.permitted.length;
+
+        ISignatureTransfer.SignatureTransferDetails[] memory details =
+            new ISignatureTransfer.SignatureTransferDetails[](permitLength);
+
+        for (uint8 i = 0; i < permitLength;) {
+            details[i].to = address(this);
+            details[i].requestedAmount = _permit.permitted[i].amount;
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        permit2.permitTransferFrom(_permit, details, msg.sender, _signature);
+
+        IVault.BatchSwapStep[] memory singleSwap = IVault.BatchSwapStep({
+            poolId: _poolId,
+            kind: IVault.SwapKind.GIVEN_IN,
+            assetIn: IAsset(_permit.permitted.token),
+            assetOut: _assetOut,
+            amount: _permit.permitted.amount,
+            userData: _userData
+        });
+
+        IVault.FundManagement memory funds = IVault.FundManagement({
+            sender: address(this),
+            fromInternalBalance: false,
+            recipient: payable(msg.sender),
+            toInternalBalance: false
+        });
+
+        vault.swap(singleSwap, funds, _limit, block.timestamp);
     }
 }

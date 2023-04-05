@@ -136,8 +136,8 @@ describe('Balancer', () => {
       );
     });
 
-    it('Should join USDC_WETH Stable pool', async () => {
-      const { contract, multiSign } = await loadFixture(deploy);
+    it('Should join USDC_WETH Stable pool and exit pool', async () => {
+      const { contract, sign, multiSign } = await loadFixture(deploy);
 
       const amount0 = 1000n * 10n ** 6n;
       const amount1 = 1n * 10n ** 18n;
@@ -166,10 +166,9 @@ describe('Balancer', () => {
         parameterValues,
       );
 
-      const poolContract = await ethers.getContractAt(
-        'IERC20',
-        '0x96646936b91d6B9D7D0c47C496AfBF3D6ec7B6f8',
-      );
+      const BPT = '0x96646936b91d6B9D7D0c47C496AfBF3D6ec7B6f8';
+
+      const poolContract = await ethers.getContractAt('IERC20', BPT);
 
       const bptAmountBefore = await poolContract.balanceOf(
         account.address,
@@ -185,9 +184,49 @@ describe('Balancer', () => {
         signature,
       );
 
-      expect(await poolContract.balanceOf(account.address)).to.gt(
-        bptAmountBefore,
+      const bptAmountAfter = await poolContract.balanceOf(
+        account.address,
       );
+
+      expect(bptAmountAfter).to.gt(bptAmountBefore);
+
+      await contract.approveToken(BPT);
+      await poolContract.approve(
+        PERMIT2_ADDRESS,
+        constants.MaxUint256,
+      );
+
+      const { permit: permit1, signature: signature1 } = await sign(
+        {
+          token: BPT,
+          amount: bptAmountAfter,
+        },
+        contract.address,
+      );
+
+      const parameterTypes1 = ['uint256', 'uint256', 'uint256'];
+      const parameterValues1 = [0, bptAmountAfter, 0];
+      const userData1 = ethers.utils.defaultAbiCoder.encode(
+        parameterTypes1,
+        parameterValues1,
+      );
+
+      const usdcBalanaceBefore = await usdc.balanceOf(
+        account.address,
+      );
+
+      await contract.exitPool(
+        poolId,
+        [USDC, WETH],
+        [0, 0],
+        userData1,
+        permit1,
+        signature1,
+      );
+
+      const usdcBalanaceAfter = await usdc.balanceOf(account.address);
+
+      expect(usdcBalanaceAfter).to.gt(usdcBalanaceBefore);
     });
 
     it('Should join Balancer Boosted Aave USD pool', async () => {
