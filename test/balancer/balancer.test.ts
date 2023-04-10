@@ -15,6 +15,7 @@ import { IERC20, IWETH9 } from '../../typechain-types';
 import { impersonate, multiSigner, signer } from '../utils/helpers';
 
 const ETH = '0x0000000000000000000000000000000000000000';
+const AURA = '0xc0c293ce456ff0ed870add98a0828dd4d2903dbf';
 const WSTETH = '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0';
 const VAULT_ADDRESS = '0xBA12222222228d8Ba445958a75a0704d566BF2C8';
 
@@ -23,6 +24,7 @@ describe('Balancer', () => {
   let usdc: IERC20;
   let usdt: IERC20;
   let weth: IWETH9;
+  let aura: IERC20;
   let wstETH: IERC20;
   let account: SignerWithAddress;
 
@@ -50,6 +52,7 @@ describe('Balancer', () => {
     usdc = await ethers.getContractAt('IERC20', USDC);
     usdt = await ethers.getContractAt('IERC20', USDT);
     weth = await ethers.getContractAt('IWETH9', WETH);
+    aura = await ethers.getContractAt('IERC20', AURA);
     wstETH = await ethers.getContractAt('IERC20', WSTETH);
 
     const amount = 5000n * 10n ** 6n;
@@ -120,16 +123,17 @@ describe('Balancer', () => {
         account.address,
       );
 
-      await contract.joinPoolETH(
+      const params = {
         poolId,
         userData,
-        [WSTETH, ETH],
+        assets: [WSTETH, ETH],
         maxAmountsIn,
-        0,
-        {
-          value: amount,
-        },
-      );
+        proxyFee: 0,
+      };
+
+      await contract.joinPoolETH(params, {
+        value: amount,
+      });
 
       expect(await poolContract.balanceOf(account.address)).to.gt(
         bptAmountBefore,
@@ -174,15 +178,17 @@ describe('Balancer', () => {
         account.address,
       );
 
-      await contract.joinPool(
+      const params = {
         poolId,
         userData,
-        [USDC, WETH],
-        [amount0, amount1],
-        0,
+        assets: [USDC, WETH],
+        maxAmountsIn: [amount0, amount1],
+        proxyFee: 0,
         permit,
         signature,
-      );
+      };
+
+      await contract.joinPool(params);
 
       const bptAmountAfter = await poolContract.balanceOf(
         account.address,
@@ -270,15 +276,17 @@ describe('Balancer', () => {
       const BB_A_USD = '0xA13a9247ea42D743238089903570127DdA72fE44';
       const BB_A_DAI = '0xae37D54Ae477268B9997d4161B96b8200755935c';
 
-      await contract.joinPool(
+      const params = {
         poolId,
         userData,
-        [BB_A_USDT, BB_A_USDC, BB_A_USD, BB_A_DAI],
+        assets: [BB_A_USDT, BB_A_USDC, BB_A_USD, BB_A_DAI],
         maxAmountsIn,
-        0,
+        proxyFee: 0,
         permit,
         signature,
-      );
+      };
+
+      await contract.joinPool(params);
     });
   });
 
@@ -368,6 +376,145 @@ describe('Balancer', () => {
       const wstBalanceAfter = await wstETH.balanceOf(account.address);
 
       expect(wstBalanceAfter).to.gt(wstBalanceBefore);
+    });
+
+    it('Should batch swap USDC > WETH > WSTETH', async () => {
+      const { contract, multiSign } = await loadFixture(deploy);
+
+      const amount0 = 1000n * 10n ** 6n;
+
+      const { permit, signature } = await multiSign(
+        [
+          {
+            token: USDC,
+            amount: amount0,
+          },
+        ],
+        contract.address,
+      );
+
+      const swapSteps = [
+        {
+          poolId:
+            '0x06df3b2bbb68adc8b0e302443692037ed9f91b42000000000000000000000063',
+          assetInIndex: 0,
+          assetOutIndex: 1,
+          amount: amount0,
+          userData: ethers.utils.toUtf8Bytes(''),
+        },
+        {
+          poolId:
+            '0x0b09dea16768f0799065c475be02919503cb2a3500020000000000000000001a',
+          amount: 0,
+          assetInIndex: 1,
+          assetOutIndex: 2,
+          userData: ethers.utils.toUtf8Bytes(''),
+        },
+        {
+          poolId:
+            '0x32296969ef14eb0c6d29669c550d4a0449130230000200000000000000000080',
+          assetInIndex: 2,
+          assetOutIndex: 3,
+          amount: 0,
+          userData: ethers.utils.toUtf8Bytes(''),
+        },
+      ];
+
+      const assets = [USDC, DAI, WETH, WSTETH];
+
+      // const vault = await ethers.getContractAt(
+      //   'IVault',
+      //   VAULT_ADDRESS,
+      // );
+      // const funds = {
+      //   sender: account.address,
+      //   fromInternalBalance: false,
+      //   recipient: account.address,
+      //   toInternalBalance: false,
+      // };
+      //
+      // const limits = await vault.callStatic.queryBatchSwap(
+      //   0,
+      //   swapSteps,
+      //   assets,
+      //   funds,
+      // );
+      //
+      // console.log('LIMITS:');
+      // console.log(limits);
+      // const rx = await limits.wait();
+      // console.log(rx);
+
+      const limitsParams = [
+        '1000000000',
+        '0',
+        '0',
+        '-478509738907085518',
+      ];
+
+      const wstBalanceBefore = await wstETH.balanceOf(
+        account.address,
+      );
+
+      const params = {
+        swaps: swapSteps,
+        assets,
+        limits: limitsParams,
+        permit,
+        signature,
+      };
+
+      await contract.batchSwap(params);
+
+      const wstBalanceAfter = await wstETH.balanceOf(account.address);
+
+      expect(wstBalanceAfter).to.gt(wstBalanceBefore);
+    });
+
+    it('Should batch swap dai>BBUSD', async () => {
+      const { contract, multiSign } = await loadFixture(deploy);
+
+      const amount0 = 100n * 10n ** 18n;
+
+      const bbDAI =
+        '0xae37d54ae477268b9997d4161b96b8200755935c000000000000000000000337';
+
+      const vault = await ethers.getContractAt(
+        'IVault',
+        VAULT_ADDRESS,
+      );
+      const funds = {
+        sender: account.address,
+        fromInternalBalance: false,
+        recipient: account.address,
+        toInternalBalance: false,
+      };
+
+      const swapSteps = [
+        {
+          poolId:
+            '0xae37d54ae477268b9997d4161b96b8200755935c000000000000000000000337',
+          assetInIndex: 0,
+          assetOutIndex: 1,
+          amount: amount0,
+          userData: ethers.utils.toUtf8Bytes(''),
+        },
+      ];
+
+      const assets = [
+        DAI,
+        '0xae37D54Ae477268B9997d4161B96b8200755935c',
+      ];
+
+      const limits = await vault.callStatic.queryBatchSwap(
+        0,
+        swapSteps,
+        assets,
+        funds,
+      );
+
+      console.log('LIMITS:');
+      console.log(limits);
     });
   });
 });
