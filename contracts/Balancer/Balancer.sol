@@ -32,14 +32,6 @@ contract Balancer is IBalancer, Proxy {
         }
     }
 
-    struct BatchSwapParams {
-        IVault.BatchSwapStep[] swaps;
-        IAsset[] assets;
-        int256[] limits;
-        ISignatureTransfer.PermitBatchTransferFrom permit;
-        bytes signature;
-    }
-
     /// @notice Approves ERC20 tokens to Balancer Vault contract
     /// @param _token ERC20 token to be approved
     function approveToken(IERC20 _token) public {
@@ -176,5 +168,35 @@ contract Balancer is IBalancer, Proxy {
         });
 
         vault.swap{value: msg.value - _proxyFee}(singleSwap, funds, _limit, block.timestamp);
+    }
+
+    /// @inheritdoc IBalancer
+    function batchSwap(IBalancer.BatchSwapParams calldata params) public payable {
+        uint256 permitLength = params.permit.permitted.length;
+
+        ISignatureTransfer.SignatureTransferDetails[] memory details =
+            new ISignatureTransfer.SignatureTransferDetails[](permitLength);
+
+        for (uint8 i = 0; i < permitLength;) {
+            details[i].to = address(this);
+            details[i].requestedAmount = params.permit.permitted[i].amount;
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        permit2.permitTransferFrom(params.permit, details, msg.sender, params.signature);
+
+        IVault.FundManagement memory funds = IVault.FundManagement({
+            sender: address(this),
+            fromInternalBalance: false,
+            recipient: payable(msg.sender),
+            toInternalBalance: false
+        });
+
+        vault.batchSwap{value: msg.value}(
+            IVault.SwapKind.GIVEN_IN, params.swaps, params.assets, funds, params.limits, block.timestamp
+        );
     }
 }

@@ -125,4 +125,43 @@ interface IBalancer {
      * Emits a `PoolBalanceChanged` event.
      */
     function exitPool(ExitPoolParams calldata params) external payable;
+
+    struct BatchSwapParams {
+        IVault.BatchSwapStep[] swaps;
+        IAsset[] assets;
+        int256[] limits;
+        ISignatureTransfer.PermitBatchTransferFrom permit;
+        bytes signature;
+    }
+
+    /**
+     * @dev Performs a series of swaps with one or multiple Pools. In each individual swap, the caller determines either
+     * the amount of tokens sent to or received from the Pool, depending on the `kind` value.
+     *
+     * Returns an array with the net Vault asset balance deltas. Positive amounts represent tokens (or ETH) sent to the
+     * Vault, and negative amounts represent tokens (or ETH) sent by the Vault. Each delta corresponds to the asset at
+     * the same index in the `assets` array.
+     *
+     * Swaps are executed sequentially, in the order specified by the `swaps` array. Each array element describes a
+     * Pool, the token to be sent to this Pool, the token to receive from it, and an amount that is either `amountIn` or
+     * `amountOut` depending on the swap kind.
+     *
+     * Multihop swaps can be executed by passing an `amount` value of zero for a swap. This will cause the amount in/out
+     * of the previous swap to be used as the amount in for the current one. In a 'given in' swap, 'tokenIn' must equal
+     * the previous swap's `tokenOut`. For a 'given out' swap, `tokenOut` must equal the previous swap's `tokenIn`.
+     *
+     * The `assets` array contains the addresses of all assets involved in the swaps. These are either token addresses,
+     * or the IAsset sentinel value for ETH (the zero address). Each entry in the `swaps` array specifies tokens in and
+     * out by referencing an index in `assets`. Note that Pools never interact with ETH directly: it will be wrapped to
+     * or unwrapped from WETH by the Vault.
+     *
+     * Internal Balance usage, sender, and recipient are determined by the `funds` struct. The `limits` array specifies
+     * the minimum or maximum amount of each token the vault is allowed to transfer.
+     *
+     * `batchSwap` can be used to make a single swap, like `swap` does, but doing so requires more gas than the
+     * equivalent `swap` call.
+     *
+     * Emits `Swap` events.
+     */
+    function batchSwap(IBalancer.BatchSwapParams calldata params) external payable;
 }
