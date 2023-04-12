@@ -1,5 +1,8 @@
-import { HardhatUserConfig } from 'hardhat/config';
+import dotenv from 'dotenv';
 import '@nomicfoundation/hardhat-toolbox';
+import { HardhatUserConfig } from 'hardhat/config';
+
+dotenv.config();
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -26,8 +29,8 @@ const config: HardhatUserConfig = {
       blockGasLimit: 0x1fffffffffffff,
       allowUnlimitedContractSize: true,
       forking: {
-        url: 'https://eth-mainnet.g.alchemy.com/v2/xrxGy3kXIcTKv3wH2k18tAuh26iC-HxG',
-        blockNumber: 16756773,
+        url: process.env.FORKING_URL,
+        blockNumber: Number(process.env.BLOCK_NUMBER),
       },
     },
   },
