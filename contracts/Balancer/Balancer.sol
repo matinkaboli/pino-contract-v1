@@ -78,6 +78,18 @@ contract Balancer is IBalancer, Proxy {
         vault.joinPool{value: msg.value - params.proxyFee}(params.poolId, address(this), msg.sender, poolRequest);
     }
 
+    ///// @inheritdoc IBalancer
+    function joinPool2(IBalancer.JoinPool2Params calldata params) public {
+        IVault.JoinPoolRequest memory poolRequest = IVault.JoinPoolRequest({
+            assets: params.assets,
+            userData: params.userData,
+            fromInternalBalance: false,
+            maxAmountsIn: params.maxAmountsIn
+        });
+
+        vault.joinPool(params.poolId, address(this), msg.sender, poolRequest);
+    }
+
     /// @inheritdoc IBalancer
     function exitPool(IBalancer.ExitPoolParams calldata params) external payable {
         permit2.permitTransferFrom(
@@ -198,5 +210,53 @@ contract Balancer is IBalancer, Proxy {
         vault.batchSwap{value: msg.value}(
             IVault.SwapKind.GIVEN_IN, params.swaps, params.assets, funds, params.limits, block.timestamp
         );
+    }
+
+    ///// @inheritdoc IBalancer
+    function batchSwap2(IBalancer.BatchSwapParams calldata params) public payable {
+        uint256 permitLength = params.permit.permitted.length;
+
+        ISignatureTransfer.SignatureTransferDetails[] memory details =
+            new ISignatureTransfer.SignatureTransferDetails[](permitLength);
+
+        for (uint8 i = 0; i < permitLength;) {
+            details[i].to = address(this);
+            details[i].requestedAmount = params.permit.permitted[i].amount;
+
+            unchecked {
+                ++i;
+            }
+        }
+
+        permit2.permitTransferFrom(params.permit, details, msg.sender, params.signature);
+
+        IVault.FundManagement memory funds = IVault.FundManagement({
+            sender: address(this),
+            fromInternalBalance: false,
+            recipient: payable(address(this)),
+            toInternalBalance: false
+        });
+
+        vault.batchSwap{value: msg.value}(
+            IVault.SwapKind.GIVEN_IN, params.swaps, params.assets, funds, params.limits, block.timestamp
+        );
+    }
+
+    function sweepToken(IBalancer.SweepParams calldata params) public payable {
+        uint256 balanceToken = params.token.balanceOf(address(this));
+        require(balanceToken >= params.amountMinimum, 'Insufficient token');
+
+        if (balanceToken > 0) {
+          params.token.safeTransfer(params.recipient, balanceToken);
+        }
+    }
+
+    function multiCall(IBalancer.BatchSwapParams calldata params0, IBalancer.JoinPool2Params calldata params1, IBalancer.SweepParams calldata params2)
+        external
+        payable
+    {
+        batchSwap2(params0);
+        joinPool2(params1);
+        sweepToken(params2);
     }
 }
