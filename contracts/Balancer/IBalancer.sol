@@ -16,6 +16,20 @@ interface IBalancer {
         bytes signature;
     }
 
+    struct JoinPool2Params {
+        bytes32 poolId;
+        bytes userData;
+        IAsset[] assets;
+        uint256[] maxAmountsIn;
+        uint16 proxyFee;
+    }
+
+    struct SweepParams {
+        IERC20 token;
+        uint256 amountMinimum;
+        address recipient;
+    }
+
     /**
      * @dev Called by users to join a Pool, which transfers tokens from `msg.sender` into the Pool's balance. This will
      * trigger custom Pool behavior, which will typically grant something in return to `msg.sender` - often tokenized

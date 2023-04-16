@@ -15,7 +15,6 @@ import { IERC20, IWETH9 } from '../../typechain-types';
 import { impersonate, multiSigner, signer } from '../utils/helpers';
 
 const ETH = '0x0000000000000000000000000000000000000000';
-const AURA = '0xc0c293ce456ff0ed870add98a0828dd4d2903dbf';
 const WSTETH = '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0';
 const VAULT_ADDRESS = '0xBA12222222228d8Ba445958a75a0704d566BF2C8';
 
@@ -24,7 +23,6 @@ describe('Balancer', () => {
   let usdc: IERC20;
   let usdt: IERC20;
   let weth: IWETH9;
-  let aura: IERC20;
   let wstETH: IERC20;
   let account: SignerWithAddress;
 
@@ -72,7 +70,6 @@ describe('Balancer', () => {
     usdc = await ethers.getContractAt('IERC20', USDC);
     usdt = await ethers.getContractAt('IERC20', USDT);
     weth = await ethers.getContractAt('IWETH9', WETH);
-    aura = await ethers.getContractAt('IERC20', AURA);
     wstETH = await ethers.getContractAt('IERC20', WSTETH);
 
     const amount = 5000n * 10n ** 6n;
@@ -267,13 +264,13 @@ describe('Balancer', () => {
       const { permit: permit1, signature: signature1 } = await sign(
         {
           token: BPT,
-          amount: bptAmountAfter,
+          amount: bptAmountAfter.toString(),
         },
         contract.address,
       );
 
       const parameterTypes1 = ['uint256', 'uint256', 'uint256'];
-      const parameterValues1 = [0, bptAmountAfter, 0];
+      const parameterValues1 = [0, bptAmountAfter.toString(), 0];
       const userData1 = ethers.utils.defaultAbiCoder.encode(
         parameterTypes1,
         parameterValues1,
@@ -300,7 +297,7 @@ describe('Balancer', () => {
     });
 
     it('Should join USDC_WETH Stable pool using JoinPool function', async () => {
-      const { contract, sign, multiSign } = await loadFixture(deploy);
+      const { contract, multiSign } = await loadFixture(deploy);
 
       const amount0 = 1000n * 10n ** 6n;
       const amount1 = 1n * 10n ** 18n;
@@ -458,7 +455,7 @@ describe('Balancer', () => {
         contract.address,
       );
 
-      const swapSteps = [
+      const swaps = [
         {
           poolId:
             '0x06df3b2bbb68adc8b0e302443692037ed9f91b42000000000000000000000063',
@@ -486,22 +483,16 @@ describe('Balancer', () => {
       ];
 
       const assets = [USDC, DAI, WETH, WSTETH];
-
-      const limitsParams = [
-        '1000000000',
-        '0',
-        '0',
-        '-478509738907085518',
-      ];
+      const limits = await getLimits(swaps, assets);
 
       const wstBalanceBefore = await wstETH.balanceOf(
         account.address,
       );
 
       const params = {
-        swaps: swapSteps,
+        swaps,
         assets,
-        limits: limitsParams,
+        limits,
         permit,
         signature,
       };
@@ -568,6 +559,229 @@ describe('Balancer', () => {
       const wstBalanceAfter = await wstETH.balanceOf(account.address);
 
       expect(wstBalanceAfter).to.gt(wstBalanceBefore);
+    });
+
+    it('Should swap USDC to WETH', async () => {
+      const { contract, multiSign } = await loadFixture(deploy);
+
+      const amount = 3000n * 10n ** 6n;
+      const poolId =
+        '0x96646936b91d6b9d7d0c47c496afbf3d6ec7b6f8000200000000000000000019';
+
+      const swaps = [
+        {
+          poolId,
+          amount,
+          assetInIndex: 0,
+          assetOutIndex: 1,
+          userData: '0x',
+        },
+      ];
+
+      const { permit, signature } = await multiSign(
+        [
+          {
+            token: USDC,
+            amount,
+          },
+        ],
+        contract.address,
+      );
+
+      const assets = [USDC, WETH];
+      const limits = await getLimits(swaps, assets);
+
+      const params = {
+        swaps,
+        assets,
+        limits,
+        permit,
+        signature,
+      };
+
+      const wethBalanceBefore = await weth.balanceOf(account.address);
+
+      await contract.batchSwap(params);
+
+      const wethBalanceAfter = await weth.balanceOf(account.address);
+
+      expect(wethBalanceAfter).to.gt(wethBalanceBefore);
+    });
+
+    it('Should batch swap DAI>WSTETH and join weth-wseth pool', async () => {
+      const { contract, multiSign } = await loadFixture(deploy);
+
+      const amount = 1000n * 10n ** 18n;
+
+      await contract.approveToken(DAI);
+
+      const { permit: permit1, signature: signature1 } =
+        await multiSign(
+          [
+            {
+              token: DAI,
+              amount,
+            },
+          ],
+          contract.address,
+        );
+
+      const swaps = [
+        {
+          poolId:
+            '0x0b09dea16768f0799065c475be02919503cb2a3500020000000000000000001a',
+          amount,
+          assetInIndex: 0,
+          assetOutIndex: 1,
+          userData: '0x',
+        },
+        {
+          poolId:
+            '0x32296969ef14eb0c6d29669c550d4a0449130230000200000000000000000080',
+          amount: '0',
+          assetInIndex: 1,
+          assetOutIndex: 2,
+          userData: '0x',
+        },
+      ];
+      const assets = [DAI, WETH, WSTETH];
+      const limits = await getLimits(swaps, assets);
+
+      const batchParams = {
+        swaps,
+        assets,
+        limits,
+        permit: permit1,
+        signature: signature1,
+      };
+
+      const wstBalanceBefore = await wstETH.balanceOf(
+        account.address,
+      );
+
+      await contract.batchSwap(batchParams);
+
+      const wstBalanceAfter = await wstETH.balanceOf(account.address);
+
+      expect(wstBalanceAfter).to.gt(wstBalanceBefore);
+
+      await contract.approveToken(WSTETH);
+      await wstETH.approve(PERMIT2_ADDRESS, constants.MaxUint256);
+
+      const amount2 = BigInt(wstBalanceAfter.toString());
+
+      const { permit: permit2, signature: signature2 } =
+        await multiSign(
+          [
+            {
+              token: WSTETH,
+              amount: amount2,
+            },
+          ],
+          contract.address,
+        );
+
+      const poolId =
+        '0x32296969ef14eb0c6d29669c550d4a0449130230000200000000000000000080';
+      const maxAmountsIn = [amount2, 0];
+
+      const parameterTypes = ['uint256', 'uint256[]', 'uint256'];
+      const parameterValues = [1, maxAmountsIn, 0];
+      const userData = ethers.utils.defaultAbiCoder.encode(
+        parameterTypes,
+        parameterValues,
+      );
+
+      const joinParams = {
+        poolId,
+        userData,
+        assets: [WSTETH, WETH],
+        maxAmountsIn,
+        proxyFee: 0,
+        permit: permit2,
+        signature: signature2,
+      };
+
+      await contract.joinPool(joinParams);
+    });
+
+    it('Should batch swap DAI>WSTETH and join weth-wseth pool through multicall', async () => {
+      const { contract, multiSign } = await loadFixture(deploy);
+
+      const amount = 1000n * 10n ** 18n;
+
+      await contract.approveToken(DAI);
+      await contract.approveToken(WSTETH);
+
+      const { permit: permit1, signature: signature1 } =
+        await multiSign(
+          [
+            {
+              token: DAI,
+              amount,
+            },
+          ],
+          contract.address,
+        );
+
+      const swaps = [
+        {
+          poolId:
+            '0x0b09dea16768f0799065c475be02919503cb2a3500020000000000000000001a',
+          amount,
+          assetInIndex: 0,
+          assetOutIndex: 1,
+          userData: '0x',
+        },
+        {
+          poolId:
+            '0x32296969ef14eb0c6d29669c550d4a0449130230000200000000000000000080',
+          amount: '0',
+          assetInIndex: 1,
+          assetOutIndex: 2,
+          userData: '0x',
+        },
+      ];
+
+      const assets = [DAI, WETH, WSTETH];
+      const limits = await getLimits(swaps, assets);
+
+      const batchParams = {
+        swaps,
+        assets,
+        limits,
+        permit: permit1,
+        signature: signature1,
+      };
+
+      const amount2 = 3n * 10n ** 17n;
+
+      const poolId =
+        '0x32296969ef14eb0c6d29669c550d4a0449130230000200000000000000000080';
+      const maxAmountsIn = [amount2, 0];
+
+      const parameterTypes = ['uint256', 'uint256[]', 'uint256'];
+      const parameterValues = [1, maxAmountsIn, 0];
+      const userData = ethers.utils.defaultAbiCoder.encode(
+        parameterTypes,
+        parameterValues,
+      );
+
+      const joinParams = {
+        poolId,
+        userData,
+        assets: [WSTETH, WETH],
+        maxAmountsIn,
+        proxyFee: 0,
+      };
+
+      const sweepParams = {
+        token: WSTETH,
+        recipient: account.address,
+        amountMinimum: 0,
+      };
+
+      await contract.multiCall(batchParams, joinParams, sweepParams);
     });
   });
 });
