@@ -244,17 +244,18 @@ contract Balancer is IBalancer, Proxy {
 
     function sweepToken(IBalancer.SweepParams calldata params) public payable {
         uint256 balanceToken = params.token.balanceOf(address(this));
-        require(balanceToken >= params.amountMinimum, 'Insufficient token');
+        require(balanceToken >= params.amountMinimum, "Insufficient token");
 
         if (balanceToken > 0) {
-          params.token.safeTransfer(params.recipient, balanceToken);
+            params.token.safeTransfer(params.recipient, balanceToken);
         }
     }
 
-    function multiCall(IBalancer.BatchSwapParams calldata params0, IBalancer.JoinPool2Params calldata params1, IBalancer.SweepParams calldata params2)
-        external
-        payable
-    {
+    function multiCall(
+        IBalancer.BatchSwapParams calldata params0,
+        IBalancer.JoinPool2Params calldata params1,
+        IBalancer.SweepParams calldata params2
+    ) external payable {
         batchSwap2(params0);
         joinPool2(params1);
         sweepToken(params2);
