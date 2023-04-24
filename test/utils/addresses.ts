@@ -169,6 +169,7 @@ export const SD_XSUSHI =
 
 export const ETH = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 export const C_ETH = '0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5';
+export const WST_ETH = '0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0';
 
 export const EURS = '0xdb25f211ab05b1c97d595516f45794528a807ad8';
 
