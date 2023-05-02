@@ -7,14 +7,13 @@ import {
   USDC,
   USDT,
   DAI,
-  WBTC,
   WETH,
   WHALE3POOL,
 } from '../utils/addresses';
 import { impersonate, multiSigner, signer } from '../utils/helpers';
 import {
   IERC20,
-  INonfungiblePositionManager,
+  // INonfungiblePositionManager,
   IWETH9,
 } from '../../typechain-types';
 
@@ -29,7 +28,7 @@ describe('Uniswap', () => {
   let usdt: IERC20;
   let weth: IWETH9;
   let account: SignerWithAddress;
-  let nfpm: INonfungiblePositionManager;
+  // let nfpm: INonfungiblePositionManager;
 
   const deploy = async () => {
     const Uniswap = await ethers.getContractFactory('Uniswap');
@@ -40,8 +39,10 @@ describe('Uniswap', () => {
       NFPM,
       WETH,
       UNIVERSAL_ROUTER,
-      [USDC, USDT, DAI, WETH],
+      [USDC, USDT, DAI],
     );
+
+    await contract.approveToken(WETH, [NFPM, SWAP_ROUTER]);
 
     return {
       contract,
@@ -58,10 +59,10 @@ describe('Uniswap', () => {
     usdc = await ethers.getContractAt('IERC20', USDC);
     usdt = await ethers.getContractAt('IERC20', USDT);
     weth = await ethers.getContractAt('IWETH9', WETH);
-    nfpm = await ethers.getContractAt(
-      'INonfungiblePositionManager',
-      NFPM,
-    );
+    // nfpm = await ethers.getContractAt(
+    //   'INonfungiblePositionManager',
+    //   NFPM,
+    // );
 
     const amount0 = 5000n * 10n ** 6n;
     const amount1 = 5000n * 10n ** 18n;
@@ -111,7 +112,6 @@ describe('Uniswap', () => {
       const wethBalanceBefore = await weth.balanceOf(account.address);
 
       await contract.swapExactInputMultihop(swapParams);
-      // gasUsed: 338k
 
       const wethBalanceAfter = await weth.balanceOf(account.address);
 

@@ -57,8 +57,8 @@ describe('Compound V2', () => {
       [C_USDC_V2, C_DAI],
     );
 
-    await contract.approveToken(USDT, C_USDT);
-    await contract.approveToken(AAVE, C_AAVE);
+    await contract.approveToken(USDT, [C_USDT]);
+    await contract.approveToken(AAVE, [C_AAVE]);
 
     return { contract, sign: await signer(account) };
   };
