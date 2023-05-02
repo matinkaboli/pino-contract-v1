@@ -19,8 +19,8 @@ describe('Lido', () => {
 
     const contract = await Lido.deploy(
       PERMIT2_ADDRESS,
-      ST_ETH,
       WETH,
+      ST_ETH,
       WST_ETH,
     );
 
@@ -53,8 +53,8 @@ describe('Lido', () => {
 
       const contract = await Lido.deploy(
         PERMIT2_ADDRESS,
-        ST_ETH,
         WETH,
+        ST_ETH,
         WST_ETH,
       );
 

@@ -31,6 +31,7 @@ describe('Balancer', () => {
 
     const contract = await Balancer.deploy(
       PERMIT2_ADDRESS,
+      WETH,
       VAULT_ADDRESS,
       [USDC, USDT, WETH],
     );
@@ -98,7 +99,7 @@ describe('Balancer', () => {
     it('Should deploy with 0 approved tokens', async () => {
       const Balancer = await ethers.getContractFactory('Balancer');
 
-      await Balancer.deploy(PERMIT2_ADDRESS, VAULT_ADDRESS, []);
+      await Balancer.deploy(PERMIT2_ADDRESS, WETH, VAULT_ADDRESS, []);
     });
 
     it('Should approve token after deployment', async () => {

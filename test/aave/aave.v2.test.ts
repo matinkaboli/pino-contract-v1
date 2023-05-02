@@ -46,6 +46,7 @@ describe('Aave - V2', () => {
 
     const contract = await AaveV2.deploy(
       PERMIT2_ADDRESS,
+      WETH,
       LENDING_POOL,
       WETH_GATEWAY,
       [USDC, USDT, A_USDC, A_USDT],
@@ -110,6 +111,7 @@ describe('Aave - V2', () => {
 
       await LendingPool.deploy(
         PERMIT2_ADDRESS,
+        WETH,
         LENDING_POOL,
         WETH_GATEWAY,
         [],
@@ -121,6 +123,7 @@ describe('Aave - V2', () => {
 
       await LendingPool.deploy(
         PERMIT2_ADDRESS,
+        WETH,
         LENDING_POOL,
         WETH_GATEWAY,
         [DAI, USDC, A_DAI, A_USDC],
@@ -132,6 +135,7 @@ describe('Aave - V2', () => {
 
       await LendingPool.deploy(
         PERMIT2_ADDRESS,
+        WETH,
         LENDING_POOL,
         WETH_GATEWAY,
         tokens,
@@ -352,8 +356,8 @@ describe('Aave - V2', () => {
 
       // await contract.approveToken(WETH, [LENDING_POOL]);
 
-      await contract.repayETH2(1, 0, {
-        value: borrowAmount,
+      await contract.repayETH(1, 0, {
+        value: borrowAmount * 2n,
       });
     });
   });
