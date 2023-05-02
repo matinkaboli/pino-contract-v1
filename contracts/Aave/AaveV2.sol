@@ -119,6 +119,10 @@ contract AaveV2 is Proxy {
         wethGateway.withdrawETH(address(lendingPool), _permit.permitted.amount, msg.sender);
     }
 
+    /// @notice Repays a borrowed token
+    /// @param _rateMode Rate mode, 1 for stable and 2 for variable
+    /// @param _permit Permit2 PermitTransferFrom struct, includes aToken and amount
+    /// @param _signature Signature, used by Permit2
     function repay(uint8 _rateMode, ISignatureTransfer.PermitTransferFrom calldata _permit, bytes calldata _signature)
         external
         payable
@@ -135,15 +139,20 @@ contract AaveV2 is Proxy {
         sweepToken(IERC20(_permit.permitted.token));
     }
 
-    // The official contract but not gas efficient compared to the other repayETH contract
-    function repayETH(uint256 _rateMode, uint256 _proxyFee) external payable {
-        wethGateway.repayETH{value: msg.value - _proxyFee}(address(lendingPool), msg.value - _proxyFee, _rateMode, msg.sender);
-    }
+    ///// @notice Repays ETH
+    ///// @param _rateMode Rate mode, 1 for stable and 2 for variable
+    ///// @param _proxyFee Fee of the proxy contract
+    // function repayETH(uint256 _rateMode, uint256 _proxyFee) external payable {
+    //     wethGateway.repayETH{value: msg.value - _proxyFee}(address(lendingPool), msg.value - _proxyFee, _rateMode, msg.sender);
+    // }
 
-    function repayETH2(uint256 _rateMode, uint256 _proxyFee) external payable {
+    /// @notice Repays ETH using WETH wrap/unwrap
+    /// @param _rateMode Rate mode, 1 for stable and 2 for variable
+    /// @param _proxyFee Fee of the proxy contract
+    function repayETH(uint256 _rateMode, uint256 _proxyFee) external payable {
         WETH.deposit{ value: msg.value - _proxyFee}();
 
-        lendingPool.repay(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, msg.value - _proxyFee, _rateMode, msg.sender);
+        lendingPool.repay(address(WETH), msg.value - _proxyFee, _rateMode, msg.sender);
 
         unwrapWETH9(msg.sender);
     }

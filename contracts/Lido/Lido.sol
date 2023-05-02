@@ -14,7 +14,8 @@ contract Lido is Proxy {
     ILido public immutable StETH;
     IWstETH public immutable WstETH;
 
-    /// @notic Lido proxy contract
+    /// @notice Lido proxy contract
+    /// @dev Lido and StETH contracts are the same
     /// @param _permit2 Permit2 contract address
     /// @param _weth WETH9 contract address
     /// @param _stETH StETH contract address
