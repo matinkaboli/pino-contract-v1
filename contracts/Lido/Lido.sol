@@ -12,11 +12,14 @@ contract Lido is Proxy {
     using SafeERC20 for IERC20;
 
     ILido public immutable StETH;
-    IWETH9 public immutable WETH9;
     IWstETH public immutable WstETH;
 
-    constructor(Permit2 _permit2, ILido _stETH, IWETH9 _weth9, IWstETH _wstETH) Proxy(_permit2) {
-        WETH9 = _weth9;
+    /// @notic Lido proxy contract
+    /// @param _permit2 Permit2 contract address
+    /// @param _weth WETH9 contract address
+    /// @param _stETH StETH contract address
+    /// @param _wstETH WstETH contract address
+    constructor(Permit2 _permit2, IWETH9 _weth, ILido _stETH, IWstETH _wstETH) Proxy(_permit2, _weth) {
         StETH = _stETH;
         WstETH = _wstETH;
 
@@ -24,27 +27,18 @@ contract Lido is Proxy {
     }
 
     /// @notice Unwraps WETH to ETH
-    function unwrapWETH9() private {
-        uint256 balanceWETH9 = WETH9.balanceOf(address(this));
+    function unwrapWETH() private {
+        uint256 balanceWETH = WETH.balanceOf(address(this));
 
-        if (balanceWETH9 > 0) {
-            WETH9.withdraw(balanceWETH9);
+        if (balanceWETH > 0) {
+            WETH.withdraw(balanceWETH);
         }
-    }
-
-    /// @notice Sweeps contract tokens to msg.sender
-    function sweepToken(IERC20 _token) private {
-        uint256 balanceOf = _token.balanceOf(address(this));
-
-        _token.safeTransfer(msg.sender, balanceOf);
     }
 
     /// @notice Sweeps all ST_ETH tokens of the contract based on shares to msg.sender
     /// @dev This function uses sharesOf instead of balanceOf to transfer 100% of tokens
     function sweepStETH() private {
-        uint256 shares = StETH.sharesOf(address(this));
-
-        StETH.transferShares(msg.sender, shares);
+        StETH.transferShares(msg.sender, StETH.sharesOf(address(this)));
     }
 
     /// @notice Submits ETH to Lido protocol and transfers ST_ETH to msg.sender
@@ -74,7 +68,7 @@ contract Lido is Proxy {
         payable
         returns (uint256 steth)
     {
-        require(_permit.permitted.token == address(WETH9));
+        require(_permit.permitted.token == address(WETH));
 
         permit2.permitTransferFrom(
             _permit,
@@ -83,7 +77,7 @@ contract Lido is Proxy {
             _signature
         );
 
-        unwrapWETH9();
+        unwrapWETH();
 
         steth = StETH.submit{value: _permit.permitted.amount}(msg.sender);
 
@@ -97,7 +91,7 @@ contract Lido is Proxy {
         external
         payable
     {
-        require(_permit.permitted.token == address(WETH9));
+        require(_permit.permitted.token == address(WETH));
 
         permit2.permitTransferFrom(
             _permit,
@@ -106,7 +100,7 @@ contract Lido is Proxy {
             _signature
         );
 
-        unwrapWETH9();
+        unwrapWETH();
 
         (bool sent,) = address(WstETH).call{value: _permit.permitted.amount - msg.value}("");
         require(sent, "Failed to send Ether");
