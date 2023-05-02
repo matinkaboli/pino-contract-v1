@@ -2,6 +2,7 @@
 pragma solidity ^0.8.18;
 
 import "../Proxy.sol";
+import "../interfaces/IWETH9.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface ICToken is IERC20 {
@@ -18,33 +19,24 @@ interface ICToken is IERC20 {
 contract Compound is Proxy {
     using SafeERC20 for IERC20;
 
-    mapping(address => mapping(address => bool)) private alreadyApprovedTokens;
-
     /// @notice Receives tokens and cTokens and approves them
     /// @param _permit2 Address of Permit2 contract
     /// @param _tokens List of ERC20 tokens used in Compound V2
     /// @param _cTokens List of ERC20 cTokens used in Compound V2
-    constructor(Permit2 _permit2, address[] memory _tokens, address[] memory _cTokens) Proxy(_permit2) {
-        for (uint8 i = 0; i < _tokens.length; i += 1) {
-            IERC20(_tokens[i]).safeApprove(_cTokens[i], type(uint256).max);
+    constructor(Permit2 _permit2, IWETH9 _weth, IERC20[] memory _tokens, address[] memory _cTokens) Proxy(_permit2, _weth) {
+        for (uint8 i = 0; i < _tokens.length;) {
+            _tokens[i].safeApprove(_cTokens[i], type(uint256).max);
 
-            alreadyApprovedTokens[_tokens[i]][_cTokens[i]] = true;
+            unchecked {
+              ++i;
+            }
         }
-    }
-    //
-    /// @notice Approves an ERC20 token to lendingPool
-    /// @param _token ERC20 token address
-
-    function approveToken(address _token, address _cToken) public onlyOwner {
-        IERC20(_token).safeApprove(_cToken, type(uint256).max);
-
-        alreadyApprovedTokens[_token][_cToken] = true;
     }
 
     /// @notice Supplies an ERC20 asset to Compound
     /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
     /// @param _signature Signature, used by Permit2
-    function supply(ISignatureTransfer.PermitTransferFrom calldata _permit, bytes calldata _signature, address _cToken)
+    function supply(ISignatureTransfer.PermitTransferFrom calldata _permit, bytes calldata _signature, ICToken _cToken)
         public
         payable
     {
@@ -55,37 +47,37 @@ contract Compound is Proxy {
             _signature
         );
 
-        uint256 balanceBefore = ICToken(_cToken).balanceOf(address(this));
+        uint256 balanceBefore = _cToken.balanceOf(address(this));
 
-        ICToken(_cToken).mint(_permit.permitted.amount);
+        _cToken.mint(_permit.permitted.amount);
 
-        uint256 balanceAfter = ICToken(_cToken).balanceOf(address(this));
+        uint256 balanceAfter = _cToken.balanceOf(address(this));
 
-        ICToken(_cToken).transfer(msg.sender, balanceAfter - balanceBefore);
+        _cToken.transfer(msg.sender, balanceAfter - balanceBefore);
     }
 
     /// @notice Supplies ETH to Compound
     /// @param _cToken address of cETH
     /// @param _fee Fee of the protocol (could be 0)
-    function supplyETH(address _cToken, uint256 _fee) public payable {
+    function supplyETH(ICToken _cToken, uint256 _fee) public payable {
         require(msg.value > 0 && msg.value > _fee);
 
         uint256 ethPrice = msg.value - _fee;
 
-        uint256 balanceBefore = ICToken(_cToken).balanceOf(address(this));
+        uint256 balanceBefore = _cToken.balanceOf(address(this));
 
-        ICToken(_cToken).mint{value: ethPrice}();
+        _cToken.mint{value: ethPrice}();
 
-        uint256 balanceAfter = ICToken(_cToken).balanceOf(address(this));
+        uint256 balanceAfter = _cToken.balanceOf(address(this));
 
-        ICToken(_cToken).transfer(msg.sender, balanceAfter - balanceBefore);
+        _cToken.transfer(msg.sender, balanceAfter - balanceBefore);
     }
 
     /// @notice Withdraws an ERC20 token and transfers it to msg.sender
     /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
     /// @param _signature Signature, used by Permit2
     /// @param _token received ERC20 token
-    function withdraw(ISignatureTransfer.PermitTransferFrom calldata _permit, bytes calldata _signature, address _token)
+    function withdraw(ISignatureTransfer.PermitTransferFrom calldata _permit, bytes calldata _signature, ICToken _token)
         public
         payable
     {
@@ -96,13 +88,13 @@ contract Compound is Proxy {
             _signature
         );
 
-        uint256 balanceBefore = ICToken(_token).balanceOf(address(this));
+        uint256 balanceBefore = _token.balanceOf(address(this));
 
         ICToken(_permit.permitted.token).redeem(_permit.permitted.amount);
 
-        uint256 balanceAfter = ICToken(_token).balanceOf(address(this));
+        uint256 balanceAfter = _token.balanceOf(address(this));
 
-        ICToken(_token).transfer(msg.sender, balanceAfter - balanceBefore);
+        _token.transfer(msg.sender, balanceAfter - balanceBefore);
     }
 
     /// @notice Received cETH and unwraps it to ETH and transfers it to msg.sender

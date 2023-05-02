@@ -20,28 +20,24 @@ interface IComet is IERC20 {
 contract Comet is Proxy {
     using SafeERC20 for IERC20;
 
-    address public weth;
-    address public comet;
-    mapping(address => mapping(address => bool)) private alreadyApprovedTokens;
+    IComet immutable public CometInterface;
 
     /// @notice Receives cUSDCv3 and approves Compoound tokens to it
+    /// @dev Do not put WETH address among _tokens list
     /// @param _comet cUSDCv3 address, used for supplying and withdrawing tokens
     /// @param _weth WETH address used in Comet protocol
     /// @param _tokens List of ERC20 tokens used in Compound V3
-    constructor(address _comet, address _weth, Permit2 _permit2, address[] memory _tokens) Proxy(_permit2) {
-        weth = _weth;
-        comet = _comet;
+    constructor(Permit2 _permit2, IWETH9 _weth, IComet _comet, IERC20[] memory _tokens) Proxy(_permit2, _weth) {
+        CometInterface = _comet;
 
-        for (uint8 i = 0; i < _tokens.length; i += 1) {
-            IERC20(_tokens[i]).safeApprove(_comet, type(uint256).max);
+        _weth.approve(address(_comet), type(uint256).max);
 
-            alreadyApprovedTokens[_tokens[i]][_comet] = true;
-        }
+        for (uint8 i = 0; i < _tokens.length;) {
+            _tokens[i].safeApprove(address(_comet), type(uint256).max);
 
-        if (!alreadyApprovedTokens[_weth][_comet]) {
-            IERC20(_weth).safeApprove(_comet, type(uint256).max);
-
-            alreadyApprovedTokens[_weth][_weth] = true;
+            unchecked {
+              ++i;
+            }
         }
     }
 
@@ -56,7 +52,7 @@ contract Comet is Proxy {
             _signature
         );
 
-        IComet(comet).supplyTo(msg.sender, _permit.permitted.token, _permit.permitted.amount);
+        CometInterface.supplyTo(msg.sender, _permit.permitted.token, _permit.permitted.amount);
     }
 
     /// @notice Wraps ETH to WETH and supplies it to Comet
@@ -66,22 +62,22 @@ contract Comet is Proxy {
 
         uint256 ethAmount = msg.value - _fee;
 
-        IWETH9(payable(weth)).deposit{value: ethAmount}();
-        IComet(comet).supplyTo(msg.sender, weth, ethAmount);
+        WETH.deposit{value: ethAmount}();
+        CometInterface.supplyTo(msg.sender, address(WETH), ethAmount);
     }
 
     /// @notice Withdraws an ERC20 token and transfers it to msg.sender
     /// @param _asset ERC20 asset to withdraw
     /// @param _amount Amount of _asset to withdraw
     function withdraw(address _asset, uint256 _amount) public payable {
-        IComet(comet).withdrawFrom(msg.sender, msg.sender, _asset, _amount);
+        CometInterface.withdrawFrom(msg.sender, msg.sender, _asset, _amount);
     }
 
     /// @notice Withdraws WETH and unwraps it to ETH and transfers it to msg.sender
     /// @param _amount Amount of WETh to withdraw
     function withdrawETH(uint256 _amount) public payable {
-        IComet(comet).withdrawFrom(msg.sender, address(this), weth, _amount);
-        IWETH9(payable(weth)).withdraw(_amount);
+        CometInterface.withdrawFrom(msg.sender, address(this), address(WETH), _amount);
+        WETH.withdraw(_amount);
 
         (bool success,) = msg.sender.call{value: _amount}("");
         if (!success) revert FailedToSendEther();
