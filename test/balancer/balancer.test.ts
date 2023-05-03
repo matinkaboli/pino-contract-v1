@@ -31,6 +31,7 @@ describe('Balancer', () => {
 
     const contract = await Balancer.deploy(
       PERMIT2_ADDRESS,
+      WETH,
       VAULT_ADDRESS,
       [USDC, USDT, WETH],
     );
@@ -98,13 +99,13 @@ describe('Balancer', () => {
     it('Should deploy with 0 approved tokens', async () => {
       const Balancer = await ethers.getContractFactory('Balancer');
 
-      await Balancer.deploy(PERMIT2_ADDRESS, VAULT_ADDRESS, []);
+      await Balancer.deploy(PERMIT2_ADDRESS, WETH, VAULT_ADDRESS, []);
     });
 
     it('Should approve token after deployment', async () => {
       const { contract } = await loadFixture(deploy);
 
-      await contract.approveToken(DAI);
+      await contract.approveToken(DAI, [VAULT_ADDRESS]);
 
       const allowance = await dai.allowance(
         contract.address,
@@ -156,7 +157,7 @@ describe('Balancer', () => {
 
       expect(bptAmountAfter).to.gt(bptAmountBefore);
 
-      await contract.approveToken(BPT);
+      await contract.approveToken(BPT, [VAULT_ADDRESS]);
       await poolContract.approve(
         PERMIT2_ADDRESS,
         constants.MaxUint256,
@@ -255,7 +256,7 @@ describe('Balancer', () => {
 
       expect(bptAmountAfter).to.gt(bptAmountBefore);
 
-      await contract.approveToken(BPT);
+      await contract.approveToken(BPT, [VAULT_ADDRESS]);
       await poolContract.approve(
         PERMIT2_ADDRESS,
         constants.MaxUint256,
@@ -509,7 +510,7 @@ describe('Balancer', () => {
 
       const amount = 100n * 10n ** 18n;
 
-      await contract.approveToken(DAI);
+      await contract.approveToken(DAI, [VAULT_ADDRESS]);
 
       const { permit, signature } = await multiSign(
         [
@@ -613,7 +614,7 @@ describe('Balancer', () => {
 
       const amount = 1000n * 10n ** 18n;
 
-      await contract.approveToken(DAI);
+      await contract.approveToken(DAI, [VAULT_ADDRESS]);
 
       const { permit: permit1, signature: signature1 } =
         await multiSign(
@@ -665,7 +666,7 @@ describe('Balancer', () => {
 
       expect(wstBalanceAfter).to.gt(wstBalanceBefore);
 
-      await contract.approveToken(WSTETH);
+      await contract.approveToken(WSTETH, [VAULT_ADDRESS]);
       await wstETH.approve(PERMIT2_ADDRESS, constants.MaxUint256);
 
       const amount2 = BigInt(wstBalanceAfter.toString());
@@ -710,8 +711,8 @@ describe('Balancer', () => {
 
       const amount = 1000n * 10n ** 18n;
 
-      await contract.approveToken(DAI);
-      await contract.approveToken(WSTETH);
+      await contract.approveToken(DAI, [VAULT_ADDRESS]);
+      await contract.approveToken(WSTETH, [VAULT_ADDRESS]);
 
       const { permit: permit1, signature: signature1 } =
         await multiSign(

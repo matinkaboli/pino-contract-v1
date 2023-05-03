@@ -2,6 +2,7 @@
 pragma solidity ^0.8.18;
 
 import "../Proxy.sol";
+import "../interfaces/IWETH9.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface ICurveSwap {
@@ -21,14 +22,13 @@ interface ICurveSwap {
 contract CurveSwap is Proxy {
     using SafeERC20 for IERC20;
 
-    address public immutable swapContract;
+    ICurveSwap public immutable CurveSwapInterface;
     address constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-    mapping(address => mapping(address => bool)) private alreadyApprovedTokens;
 
     /// @notice Receives swap contract address
-    /// @param _swapContract Swap contract address
-    constructor(address _swapContract, Permit2 _permit2) Proxy(_permit2) {
-        swapContract = _swapContract;
+    /// @param _curveSwap Swap contract address
+    constructor(Permit2 _permit2, IWETH9 _weth, ICurveSwap _curveSwap) Proxy(_permit2, _weth) {
+        CurveSwapInterface = _curveSwap;
     }
 
     /// @notice Perform up to four swaps in a single transaction
@@ -66,13 +66,7 @@ contract CurveSwap is Proxy {
             _signature
         );
 
-        if (!alreadyApprovedTokens[_route[0]][swapContract]) {
-            IERC20(_route[0]).safeApprove(swapContract, type(uint256).max);
-
-            alreadyApprovedTokens[_route[0]][swapContract] = true;
-        }
-
-        ICurveSwap(swapContract).exchange_multiple(
+        CurveSwapInterface.exchange_multiple(
             _route, _swap_params, _permit.permitted.amount, _expected, _pools, msg.sender
         );
     }
@@ -109,7 +103,7 @@ contract CurveSwap is Proxy {
 
         ethValue = msg.value - _fee;
 
-        ICurveSwap(swapContract).exchange_multiple{value: ethValue}(
+        CurveSwapInterface.exchange_multiple{value: ethValue}(
             _route, _swap_params, _amount, _expected, _pools, msg.sender
         );
     }

@@ -24,22 +24,19 @@ contract Uniswap is IERC721Receiver, IUniswap, Proxy {
         address token1;
     }
 
-    address payable public immutable weth;
     ISwapRouter public immutable swapRouter;
     mapping(uint256 => Deposit) public deposits;
     IUniversalRouter public immutable universalRouter;
     INonfungiblePositionManager public immutable nfpm;
-    mapping(address => mapping(address => bool)) public alreadyApprovedTokens;
 
     constructor(
-        ISwapRouter _swapRouter,
         Permit2 _permit2,
+        IWETH9 _weth,
+        ISwapRouter _swapRouter,
         INonfungiblePositionManager _nfpm,
-        address payable _weth,
         IUniversalRouter _universalRouter,
         IERC20[] memory _tokens
-    ) Proxy(_permit2) {
-        weth = _weth;
+    ) Proxy(_permit2, _weth) {
         nfpm = _nfpm;
         swapRouter = _swapRouter;
         universalRouter = _universalRouter;
@@ -47,9 +44,6 @@ contract Uniswap is IERC721Receiver, IUniswap, Proxy {
         for (uint8 i = 0; i < _tokens.length; ++i) {
             _tokens[i].safeApprove(address(_nfpm), type(uint256).max);
             _tokens[i].safeApprove(address(_swapRouter), type(uint256).max);
-
-            alreadyApprovedTokens[address(_tokens[i])][address(_nfpm)] = true;
-            alreadyApprovedTokens[address(_tokens[i])][address(_swapRouter)] = true;
         }
     }
 
@@ -70,14 +64,6 @@ contract Uniswap is IERC721Receiver, IUniswap, Proxy {
         deposits[tokenId] = Deposit({owner: owner, liquidity: liquidity, token0: token0, token1: token1});
     }
 
-    function approveToken(IERC20 _token) public onlyOwner {
-        _token.safeApprove(address(nfpm), type(uint256).max);
-        _token.safeApprove(address(swapRouter), type(uint256).max);
-
-        alreadyApprovedTokens[address(_token)][address(nfpm)] = true;
-        alreadyApprovedTokens[address(_token)][address(swapRouter)] = true;
-    }
-
     /// @inheritdoc IUniswap
     function swapExactInputSingle(IUniswap.SwapExactInputSingleParams calldata params)
         external
@@ -85,7 +71,7 @@ contract Uniswap is IERC721Receiver, IUniswap, Proxy {
         returns (uint256)
     {
         if (params.receiveETH) {
-            require(params.tokenOut == weth, "Token out must be WETH");
+            require(params.tokenOut == address(WETH), "Token out must be WETH");
         }
 
         permit2.permitTransferFrom(
@@ -112,7 +98,7 @@ contract Uniswap is IERC721Receiver, IUniswap, Proxy {
         );
 
         if (params.receiveETH) {
-            IWETH9(payable(weth)).withdraw(amountOut);
+            WETH.withdraw(amountOut);
             (bool sent,) = payable(msg.sender).call{value: amountOut}("");
             require(sent, "Failed to send Ether");
         }
@@ -130,7 +116,7 @@ contract Uniswap is IERC721Receiver, IUniswap, Proxy {
 
         return swapRouter.exactInputSingle{value: value}(
             ISwapRouter.ExactInputSingleParams({
-                tokenIn: address(weth),
+                tokenIn: address(WETH),
                 tokenOut: params.tokenOut,
                 fee: params.fee,
                 recipient: msg.sender,
@@ -213,7 +199,7 @@ contract Uniswap is IERC721Receiver, IUniswap, Proxy {
     {
         uint256 value = msg.value - params.proxyFee;
 
-        IWETH9(weth).deposit{value: value}();
+        WETH.deposit{value: value}();
 
         ISwapRouter.ExactInputParams memory swapParams = ISwapRouter.ExactInputParams({
             path: params.path,
@@ -264,7 +250,7 @@ contract Uniswap is IERC721Receiver, IUniswap, Proxy {
         returns (uint256 amountIn)
     {
         uint256 value = msg.value - params.proxyFee;
-        IWETH9(weth).deposit{value: value}();
+        WETH.deposit{value: value}();
 
         ISwapRouter.ExactOutputParams memory swapParams = ISwapRouter.ExactOutputParams({
             path: params.path,
@@ -277,7 +263,7 @@ contract Uniswap is IERC721Receiver, IUniswap, Proxy {
         amountIn = swapRouter.exactOutput(swapParams);
 
         if (amountIn < value) {
-            IWETH9(weth).withdraw(value - amountIn);
+            WETH.withdraw(value - amountIn);
 
             (bool success,) = payable(msg.sender).call{value: value - amountIn}("");
             require(success, "Failed to send back eth");
@@ -301,7 +287,7 @@ contract Uniswap is IERC721Receiver, IUniswap, Proxy {
         details[0].requestedAmount = params.permit.permitted[0].amount;
 
         // Assume that permit.permitted.length == 1
-        address token1 = weth;
+        address token1 = address(WETH);
         uint256 amount1Desired = msg.value - params.proxyFee;
 
         if (tokensLen > 1) {
@@ -311,8 +297,8 @@ contract Uniswap is IERC721Receiver, IUniswap, Proxy {
             token1 = params.permit.permitted[1].token;
             amount1Desired = params.permit.permitted[1].amount;
         } else {
-            if (params.token0 == weth || params.token1 == weth) {
-                IWETH9(weth).deposit{value: amount1Desired}();
+            if (params.token0 == address(WETH) || params.token1 == address(WETH)) {
+                WETH.deposit{value: amount1Desired}();
             }
         }
 
@@ -348,7 +334,7 @@ contract Uniswap is IERC721Receiver, IUniswap, Proxy {
             if (tokensLen > 1) {
                 IERC20(token1).safeTransfer(msg.sender, refund1);
             } else {
-                IWETH9(weth).withdraw(refund1);
+                WETH.withdraw(refund1);
                 (bool success,) = payable(msg.sender).call{value: refund1}("");
 
                 require(success, "Failed to send back eth");

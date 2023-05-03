@@ -2,6 +2,7 @@
 pragma solidity ^0.8.18;
 
 import "../Proxy.sol";
+import "../interfaces/IWETH9.sol";
 import "../interfaces/Permit2.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -21,17 +22,21 @@ contract CurvePool is Proxy {
     /// @param _tokens Addresses of ERC20 tokens inside the _pool
     /// @param _token Address of pool token
     /// @param _ethIndex Index of ETH in the pool (100 if ETH does not exist in the pool)
-    constructor(address _pool, Permit2 _permit2, address[] memory _tokens, address _token, uint8 _ethIndex)
-        Proxy(_permit2)
+    constructor(Permit2 _permit2, IWETH9 _weth, address _pool, address[] memory _tokens, address _token, uint8 _ethIndex)
+        Proxy(_permit2, _weth)
     {
         pool = _pool;
         token = _token;
         tokens = _tokens;
         ethIndex = _ethIndex;
 
-        for (uint8 i = 0; i < _tokens.length; i += 1) {
+        for (uint8 i = 0; i < _tokens.length;) {
             if (i != _ethIndex) {
                 IERC20(tokens[i]).safeApprove(_pool, type(uint256).max);
+            }
+
+            unchecked {
+              ++i;
             }
         }
 

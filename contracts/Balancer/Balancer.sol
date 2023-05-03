@@ -14,14 +14,14 @@ import "../interfaces/IWETH9.sol";
 contract Balancer is IBalancer, Proxy {
     using SafeERC20 for IERC20;
 
-    IVault immutable vault;
+    IVault immutable Vault;
 
     /// @notice Sets Balancer Vault address and approves assets to it
     /// @param _permit2 Permit2 contract address
     /// @param _vault Balancer Vault contract address
     /// @param _tokens ERC20 tokens, they're approved beforehand
-    constructor(Permit2 _permit2, IVault _vault, IERC20[] memory _tokens) Proxy(_permit2) {
-        vault = _vault;
+    constructor(Permit2 _permit2, IWETH9 _weth, IVault _vault, IERC20[] memory _tokens) Proxy(_permit2, _weth) {
+        Vault = _vault;
 
         for (uint256 i = 0; i < _tokens.length;) {
             _tokens[i].safeApprove(address(_vault), type(uint256).max);
@@ -30,12 +30,6 @@ contract Balancer is IBalancer, Proxy {
                 ++i;
             }
         }
-    }
-
-    /// @notice Approves ERC20 tokens to Balancer Vault contract
-    /// @param _token ERC20 token to be approved
-    function approveToken(IERC20 _token) public {
-        _token.safeApprove(address(vault), type(uint256).max);
     }
 
     /// @inheritdoc IBalancer
@@ -63,7 +57,7 @@ contract Balancer is IBalancer, Proxy {
             maxAmountsIn: params.maxAmountsIn
         });
 
-        vault.joinPool{value: msg.value - params.proxyFee}(params.poolId, address(this), msg.sender, poolRequest);
+        Vault.joinPool{value: msg.value - params.proxyFee}(params.poolId, address(this), msg.sender, poolRequest);
     }
 
     /// @inheritdoc IBalancer
@@ -75,7 +69,7 @@ contract Balancer is IBalancer, Proxy {
             maxAmountsIn: params.maxAmountsIn
         });
 
-        vault.joinPool{value: msg.value - params.proxyFee}(params.poolId, address(this), msg.sender, poolRequest);
+        Vault.joinPool{value: msg.value - params.proxyFee}(params.poolId, address(this), msg.sender, poolRequest);
     }
 
     ///// @inheritdoc IBalancer
@@ -87,7 +81,7 @@ contract Balancer is IBalancer, Proxy {
             maxAmountsIn: params.maxAmountsIn
         });
 
-        vault.joinPool(params.poolId, address(this), msg.sender, poolRequest);
+        Vault.joinPool(params.poolId, address(this), msg.sender, poolRequest);
     }
 
     /// @inheritdoc IBalancer
@@ -109,7 +103,7 @@ contract Balancer is IBalancer, Proxy {
             minAmountsOut: params.minAmountsOut
         });
 
-        vault.exitPool(params.poolId, address(this), payable(msg.sender), exitRequest);
+        Vault.exitPool(params.poolId, address(this), payable(msg.sender), exitRequest);
     }
 
     /// @notice Swaps a token for another token in a pool
@@ -150,7 +144,7 @@ contract Balancer is IBalancer, Proxy {
             toInternalBalance: false
         });
 
-        vault.swap(singleSwap, funds, _limit, block.timestamp);
+        Vault.swap(singleSwap, funds, _limit, block.timestamp);
     }
 
     /// @notice Swaps ETH for another token in a pool
@@ -179,7 +173,7 @@ contract Balancer is IBalancer, Proxy {
             toInternalBalance: false
         });
 
-        vault.swap{value: msg.value - _proxyFee}(singleSwap, funds, _limit, block.timestamp);
+        Vault.swap{value: msg.value - _proxyFee}(singleSwap, funds, _limit, block.timestamp);
     }
 
     /// @inheritdoc IBalancer
@@ -207,7 +201,7 @@ contract Balancer is IBalancer, Proxy {
             toInternalBalance: false
         });
 
-        vault.batchSwap{value: msg.value}(
+        Vault.batchSwap{value: msg.value}(
             IVault.SwapKind.GIVEN_IN, params.swaps, params.assets, funds, params.limits, block.timestamp
         );
     }
@@ -237,7 +231,7 @@ contract Balancer is IBalancer, Proxy {
             toInternalBalance: false
         });
 
-        vault.batchSwap{value: msg.value}(
+        Vault.batchSwap{value: msg.value}(
             IVault.SwapKind.GIVEN_IN, params.swaps, params.assets, funds, params.limits, block.timestamp
         );
     }

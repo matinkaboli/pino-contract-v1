@@ -17,16 +17,17 @@ import {
   A_USDT,
   A_WETH,
   tokens,
-  aTokens,
   WHALE3POOL,
 } from '../utils/addresses';
 import { IERC20 } from '../../typechain-types';
 import { impersonate, signer } from '../utils/helpers';
+import { ILendingPool } from '../../typechain-types/contracts/Aave/LendingPool.sol';
+import { IWethGateway } from '../../typechain-types/contracts/Aave/LendingPool2.sol';
 
 const LENDING_POOL = '0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9';
 const WETH_GATEWAY = '0xEFFC18fC3b7eb8E676dac549E0c693ad50D1Ce31';
 
-describe('Aave - LendingPool', () => {
+describe('Aave - V2', () => {
   let dai: IERC20;
   let usdc: IERC20;
   let usdt: IERC20;
@@ -35,26 +36,26 @@ describe('Aave - LendingPool', () => {
   let aUsdt: IERC20;
   let aWeth: IERC20;
   let weth: Contract;
+  let aave: ILendingPool;
+  let wethGateway: IWethGateway;
   let account: SignerWithAddress;
   let otherAccount: SignerWithAddress;
 
   const deploy = async () => {
-    const LendingPool = await ethers.getContractFactory(
-      'LendingPool',
-    );
-    const contract = await LendingPool.deploy(
+    const AaveV2 = await ethers.getContractFactory('AaveV2');
+
+    const contract = await AaveV2.deploy(
+      PERMIT2_ADDRESS,
+      WETH,
       LENDING_POOL,
       WETH_GATEWAY,
-      PERMIT2_ADDRESS,
-      [USDC, USDT],
-      [A_USDC, A_USDT],
+      [USDC, USDT, A_USDC, A_USDT],
     );
 
-    await contract.approveToken(DAI);
-    await contract.approveToken(WETH);
-    await contract.approveToken(A_DAI);
-    await contract.approveToken(A_WETH);
-    await contract.approveTokenToWethGateway(A_WETH);
+    await contract.approveToken(DAI, [LENDING_POOL]);
+    await contract.approveToken(A_DAI, [LENDING_POOL]);
+    await contract.approveToken(WETH, [LENDING_POOL, WETH_GATEWAY]);
+    await contract.approveToken(A_WETH, [LENDING_POOL, WETH_GATEWAY]);
 
     return { contract, sign: await signer(account) };
   };
@@ -71,20 +72,26 @@ describe('Aave - LendingPool', () => {
     aUsdc = await ethers.getContractAt('IERC20', A_USDC);
     aUsdt = await ethers.getContractAt('IERC20', A_USDT);
     aWeth = await ethers.getContractAt('IERC20', A_WETH);
+    aave = await ethers.getContractAt('ILendingPool', LENDING_POOL);
+    wethGateway = await ethers.getContractAt(
+      'IWethGateway',
+      WETH_GATEWAY,
+    );
 
-    const amount = 5000n * 10n ** 6n;
     const ethAmount = 3n * 10n ** 18n;
     const daiAmount = 5000n * 10n ** 18n;
+    const usdtAmount = 5000n * 10n ** 6n;
+    const usdcAmount = 1500n * 10n ** 6n;
 
-    await usdc.connect(whale).transfer(account.address, amount);
-    await usdt.connect(whale).transfer(account.address, amount);
+    await usdc.connect(whale).transfer(account.address, usdcAmount);
+    await usdt.connect(whale).transfer(account.address, usdtAmount);
     await dai.connect(whale).transfer(account.address, daiAmount);
     await weth.deposit({
       value: ethAmount,
     });
 
-    expect(await usdc.balanceOf(account.address)).to.gte(amount);
-    expect(await usdt.balanceOf(account.address)).to.gte(amount);
+    expect(await usdc.balanceOf(account.address)).to.gte(usdcAmount);
+    expect(await usdt.balanceOf(account.address)).to.gte(usdtAmount);
     expect(await dai.balanceOf(account.address)).to.gte(daiAmount);
     expect(await weth.balanceOf(account.address)).to.gte(ethAmount);
 
@@ -100,44 +107,38 @@ describe('Aave - LendingPool', () => {
 
   describe('Deployment', () => {
     it('Should deploy with 0 tokens', async () => {
-      const LendingPool = await ethers.getContractFactory(
-        'LendingPool',
-      );
+      const LendingPool = await ethers.getContractFactory('AaveV2');
 
       await LendingPool.deploy(
+        PERMIT2_ADDRESS,
+        WETH,
         LENDING_POOL,
         WETH_GATEWAY,
-        PERMIT2_ADDRESS,
-        [],
         [],
       );
     });
 
     it('Should deploy with multiple tokens', async () => {
-      const LendingPool = await ethers.getContractFactory(
-        'LendingPool',
-      );
+      const LendingPool = await ethers.getContractFactory('AaveV2');
 
       await LendingPool.deploy(
+        PERMIT2_ADDRESS,
+        WETH,
         LENDING_POOL,
         WETH_GATEWAY,
-        PERMIT2_ADDRESS,
-        [DAI, USDC],
-        [A_DAI, A_USDC],
+        [DAI, USDC, A_DAI, A_USDC],
       );
     });
 
     it('Should deploy with all aave tokens and aTokens', async () => {
-      const LendingPool = await ethers.getContractFactory(
-        'LendingPool',
-      );
+      const LendingPool = await ethers.getContractFactory('AaveV2');
 
       await LendingPool.deploy(
+        PERMIT2_ADDRESS,
+        WETH,
         LENDING_POOL,
         WETH_GATEWAY,
-        PERMIT2_ADDRESS,
         tokens,
-        aTokens,
         {
           gasLimit: 10_000_000,
         },
@@ -151,20 +152,17 @@ describe('Aave - LendingPool', () => {
 
       const amount = 1000n * 10n ** 6n;
 
-      const permitted = {
-        amount,
-        token: USDC,
-      };
-
       const { signature, permit } = await sign(
-        permitted,
+        {
+          amount,
+          token: USDC,
+        },
         contract.address,
       );
 
       const aUsdcBalance = await aUsdc.balanceOf(account.address);
 
-      await contract.deposit(permit, signature);
-      // gasUsed: 354k
+      await contract.supply(permit, signature);
 
       expect(await aUsdc.balanceOf(account.address)).to.gt(
         aUsdcBalance,
@@ -176,20 +174,17 @@ describe('Aave - LendingPool', () => {
 
       const amount = 1000n * 10n ** 6n;
 
-      const permitted = {
-        amount,
-        token: USDT,
-      };
-
       const { signature, permit } = await sign(
-        permitted,
+        {
+          amount,
+          token: USDT,
+        },
         contract.address,
       );
 
       const aUsdtBalance = await aUsdt.balanceOf(account.address);
 
-      await contract.deposit(permit, signature);
-      // gasUsed: 355k
+      await contract.supply(permit, signature);
 
       expect(await aUsdt.balanceOf(account.address)).to.gt(
         aUsdtBalance,
@@ -201,20 +196,17 @@ describe('Aave - LendingPool', () => {
 
       const amount = 1000n * 10n ** 18n;
 
-      const permitted = {
-        amount,
-        token: DAI,
-      };
-
       const { signature, permit } = await sign(
-        permitted,
+        {
+          amount,
+          token: DAI,
+        },
         contract.address,
       );
 
       const aDaiBalance = await aDai.balanceOf(account.address);
 
-      await contract.deposit(permit, signature);
-      // gasUsed: 355k
+      await contract.supply(permit, signature);
 
       expect(await aDai.balanceOf(account.address)).to.gt(
         aDaiBalance,
@@ -226,20 +218,17 @@ describe('Aave - LendingPool', () => {
 
       const amount = 1n * 10n ** 18n;
 
-      const permitted = {
-        amount,
-        token: WETH,
-      };
-
       const { signature, permit } = await sign(
-        permitted,
+        {
+          amount,
+          token: WETH,
+        },
         contract.address,
       );
 
       const aWethBalance = await aWeth.balanceOf(account.address);
 
-      await contract.deposit(permit, signature);
-      // gasUsed: 354k
+      await contract.supply(permit, signature);
 
       expect(await aWeth.balanceOf(account.address)).to.gt(
         aWethBalance,
@@ -257,10 +246,9 @@ describe('Aave - LendingPool', () => {
         account.address,
       );
 
-      await contract.depositETH(fee, {
+      await contract.supplyETH(fee, {
         value: amount - fee,
       });
-      // gasUsed: 293k
 
       const aWethBalanceAfter = await aWeth.balanceOf(
         account.address,
@@ -272,20 +260,120 @@ describe('Aave - LendingPool', () => {
     });
   });
 
+  describe('Repay', () => {
+    it('Should supply USDC and borrow DAI', async () => {
+      const { contract, sign } = await loadFixture(deploy);
+
+      const amount = 1000n * 10n ** 6n;
+
+      const sign0 = await sign(
+        {
+          amount,
+          token: USDC,
+        },
+        contract.address,
+      );
+
+      await contract.supply(sign0.permit, sign0.signature);
+
+      const borrowAmount = 200n * 10n ** 18n;
+
+      const daiBalanceBefore = await dai.balanceOf(account.address);
+
+      await aave.borrow(DAI, borrowAmount, 1, 0, account.address);
+
+      const daiBalanceAfter = await dai.balanceOf(account.address);
+
+      expect(daiBalanceAfter).to.gt(daiBalanceBefore);
+
+      const sign1 = await sign(
+        {
+          token: DAI,
+          amount: 500n * 10n ** 18n,
+        },
+        contract.address,
+      );
+
+      await contract.repay(1, sign1.permit, sign1.signature);
+    });
+
+    it('Should supply USDC and borrow ETH', async () => {
+      const { contract, sign } = await loadFixture(deploy);
+
+      const amount = 1000n * 10n ** 6n;
+
+      const sign0 = await sign(
+        {
+          amount,
+          token: USDC,
+        },
+        contract.address,
+      );
+
+      await contract.supply(sign0.permit, sign0.signature);
+
+      const borrowAmount = 1n * 10n ** 16n;
+
+      const wethBalanceBefore = await weth.balanceOf(account.address);
+
+      // await wethGateway.borrowETH(LENDING_POOL, borrowAmount, 2, 0);
+      await aave.borrow(WETH, borrowAmount, 1, 0, account.address);
+
+      const wethBalanceAfter = await weth.balanceOf(account.address);
+
+      expect(wethBalanceAfter).to.gt(wethBalanceBefore);
+
+      await contract.repayETH(1, 0, {
+        value: borrowAmount,
+      });
+    });
+
+    it('Should supply USDC and borrow ETH using repayETH2', async () => {
+      const { contract, sign } = await loadFixture(deploy);
+
+      const amount = 1000n * 10n ** 6n;
+
+      const sign0 = await sign(
+        {
+          amount,
+          token: USDC,
+        },
+        contract.address,
+      );
+
+      await contract.supply(sign0.permit, sign0.signature);
+
+      const borrowAmount = 1n * 10n ** 16n;
+
+      const wethBalanceBefore = await weth.balanceOf(account.address);
+
+      // await wethGateway.borrowETH(LENDING_POOL, borrowAmount, 2, 0);
+      await aave.borrow(WETH, borrowAmount, 1, 0, account.address);
+
+      const wethBalanceAfter = await weth.balanceOf(account.address);
+
+      expect(wethBalanceAfter).to.gt(wethBalanceBefore);
+
+      // await contract.approveToken(WETH, [LENDING_POOL]);
+
+      await contract.repayETH(1, 0, {
+        value: borrowAmount * 2n,
+      });
+    });
+  });
+
   describe('Withdraw', () => {
     it('Should supply USDC and withdraw it', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
       const amount = 100n * 10n ** 6n;
-      const minimumAmount = 98n * 10n ** 6n;
-
-      const permitted1 = {
-        amount,
-        token: USDC,
-      };
+      const minimumAmount = 90n * 10n ** 6n;
 
       const { signature, permit } = await sign(
-        permitted1,
+        {
+          amount,
+          token: USDC,
+        },
         contract.address,
       );
 
@@ -293,8 +381,7 @@ describe('Aave - LendingPool', () => {
         account.address,
       );
 
-      await contract.deposit(permit, signature);
-      // gasUsed: 354k
+      await contract.supply(permit, signature);
 
       const aUsdcBalanceAfter = await aUsdc.balanceOf(
         account.address,
@@ -302,24 +389,19 @@ describe('Aave - LendingPool', () => {
 
       expect(aUsdcBalanceAfter).to.gt(aUsdcBalanceBefore);
 
-      const permitted2 = {
-        token: A_USDC,
-        amount: aUsdcBalanceAfter,
-      };
-
       const { signature: signature2, permit: permit2 } = await sign(
-        permitted2,
+        {
+          token: A_USDC,
+          amount: aUsdcBalanceAfter,
+        },
         contract.address,
       );
 
       const usdcBalanceBefore = await usdc.balanceOf(account.address);
 
       await contract.withdraw(permit2, signature2, USDC);
-      // gasUsed: 379k
 
-      const usdcBalanceAfter = await usdc.balanceOf(account.address);
-
-      expect(usdcBalanceAfter).to.gt(
+      expect(await usdc.balanceOf(account.address)).to.gt(
         usdcBalanceBefore.add(minimumAmount),
       );
     });
@@ -330,24 +412,21 @@ describe('Aave - LendingPool', () => {
       const amount = 100n * 10n ** 18n;
       const minimumAmount = 101n * 10n ** 18n;
 
-      const permitted1 = {
-        amount,
-        token: DAI,
-      };
-
       const { signature, permit } = await sign(
-        permitted1,
+        {
+          amount,
+          token: DAI,
+        },
         contract.address,
       );
 
       const aDaiBalanceBefore = await aDai.balanceOf(account.address);
 
-      await contract.deposit(permit, signature);
-      // gasUsed: 355k
+      await contract.supply(permit, signature);
 
-      const aDaiBalanceAfter = await aDai.balanceOf(account.address);
-
-      expect(aDaiBalanceAfter).to.gt(aDaiBalanceBefore);
+      expect(await aDai.balanceOf(account.address)).to.gt(
+        aDaiBalanceBefore,
+      );
 
       // Increate the time to 2 years to get some APY
       const TWO_YEAR_AFTER = 60 * 60 * 24 * 365 * 2;
@@ -356,24 +435,19 @@ describe('Aave - LendingPool', () => {
 
       const aDaiBalanceAfter2 = await aDai.balanceOf(account.address);
 
-      const permitted2 = {
-        token: A_DAI,
-        amount: aDaiBalanceAfter2,
-      };
-
       const { signature: signature2, permit: permit2 } = await sign(
-        permitted2,
+        {
+          token: A_DAI,
+          amount: aDaiBalanceAfter2,
+        },
         contract.address,
       );
 
       const daiBalanceBefore = await dai.balanceOf(account.address);
 
       await contract.withdraw(permit2, signature2, DAI);
-      // gasUsed: 420k
 
-      const daiBalanceAfter = await dai.balanceOf(account.address);
-
-      expect(daiBalanceAfter).to.gt(
+      expect(await dai.balanceOf(account.address)).to.gt(
         daiBalanceBefore.add(minimumAmount),
       );
     });
@@ -384,13 +458,11 @@ describe('Aave - LendingPool', () => {
       const amount = 2n * 10n ** 18n;
       const minimumAmount = 1n * 10n ** 18n;
 
-      const permitted1 = {
-        amount,
-        token: WETH,
-      };
-
       const { signature, permit } = await sign(
-        permitted1,
+        {
+          amount,
+          token: WETH,
+        },
         contract.address,
       );
 
@@ -398,8 +470,7 @@ describe('Aave - LendingPool', () => {
         account.address,
       );
 
-      await contract.deposit(permit, signature);
-      // gasUsed: 354k
+      await contract.supply(permit, signature);
 
       const aWethBalanceAfter = await aWeth.balanceOf(
         account.address,
@@ -407,24 +478,19 @@ describe('Aave - LendingPool', () => {
 
       expect(aWethBalanceAfter).to.gt(aWethBalanceBefore);
 
-      const permitted2 = {
-        amount: aWethBalanceAfter,
-        token: A_WETH,
-      };
-
       const { signature: signature2, permit: permit2 } = await sign(
-        permitted2,
+        {
+          amount: aWethBalanceAfter,
+          token: A_WETH,
+        },
         contract.address,
       );
 
       const wethBalanceBefore = await weth.balanceOf(account.address);
 
       await contract.withdraw(permit2, signature2, WETH);
-      // gasUsed: 402k
 
-      const wethBalanceAfter = await weth.balanceOf(account.address);
-
-      expect(wethBalanceAfter).to.gt(
+      expect(await weth.balanceOf(account.address)).to.gt(
         wethBalanceBefore.add(minimumAmount),
       );
     });
@@ -440,10 +506,9 @@ describe('Aave - LendingPool', () => {
         account.address,
       );
 
-      await contract.depositETH(fee, {
+      await contract.supplyETH(fee, {
         value: amount - fee,
       });
-      // gasUsed: 293k
 
       const aWethBalanceAfter = await aWeth.balanceOf(
         account.address,
@@ -455,22 +520,19 @@ describe('Aave - LendingPool', () => {
 
       const balanceBefore = await account.getBalance();
 
-      const permitted1 = {
-        amount: aWethBalanceAfter,
-        token: A_WETH,
-      };
-
       const { signature, permit } = await sign(
-        permitted1,
+        {
+          amount: aWethBalanceAfter,
+          token: A_WETH,
+        },
         contract.address,
       );
 
       await contract.withdrawETH(permit, signature);
-      // gasUsed: 487k
 
-      const balanceAfter = await account.getBalance();
-
-      expect(balanceAfter).to.gt(balanceBefore.add(minimumAmount));
+      expect(await account.getBalance()).to.gt(
+        balanceBefore.add(minimumAmount),
+      );
     });
 
     it('Should supply ETH directly and withdraw WETH', async () => {
@@ -484,10 +546,9 @@ describe('Aave - LendingPool', () => {
         account.address,
       );
 
-      await contract.depositETH(fee, {
+      await contract.supplyETH(fee, {
         value: amount - fee,
       });
-      // gasUsed: 293k
 
       const aWethBalanceAfter = await aWeth.balanceOf(
         account.address,
@@ -499,22 +560,17 @@ describe('Aave - LendingPool', () => {
 
       const wethBalanceBefore = await weth.balanceOf(account.address);
 
-      const permitted = {
-        token: A_WETH,
-        amount: aWethBalanceAfter,
-      };
-
       const { permit, signature } = await sign(
-        permitted,
+        {
+          token: A_WETH,
+          amount: aWethBalanceAfter,
+        },
         contract.address,
       );
 
       await contract.withdraw(permit, signature, WETH);
-      // gasUsed: 402k
 
-      const wethBalanceAfter = await weth.balanceOf(account.address);
-
-      expect(wethBalanceAfter).to.gt(
+      expect(await weth.balanceOf(account.address)).to.gt(
         wethBalanceBefore.add(minimumAmount),
       );
     });
@@ -527,7 +583,10 @@ describe('Aave - LendingPool', () => {
       const newLendingPoolAddress =
         '0xc6845a5c768bf8d7681249f8927877efda425baf';
 
-      await contract.changeLendingPoolAddress(newLendingPoolAddress);
+      await contract.setNewAddresses(
+        newLendingPoolAddress,
+        WETH_GATEWAY,
+      );
 
       const currentOwner = await contract.lendingPool();
 
@@ -543,7 +602,7 @@ describe('Aave - LendingPool', () => {
       await expect(
         contract
           .connect(otherAccount)
-          .changeLendingPoolAddress(newLendingPoolAddress),
+          .setNewAddresses(newLendingPoolAddress, WETH_GATEWAY),
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
