@@ -20,7 +20,7 @@ interface IComet is IERC20 {
 contract Comet is Proxy {
     using SafeERC20 for IERC20;
 
-    IComet immutable public CometInterface;
+    IComet public immutable CometInterface;
 
     /// @notice Receives cUSDCv3 and approves Compoound tokens to it
     /// @dev Do not put WETH address among _tokens list
@@ -36,7 +36,7 @@ contract Comet is Proxy {
             _tokens[i].safeApprove(address(_comet), type(uint256).max);
 
             unchecked {
-              ++i;
+                ++i;
             }
         }
     }

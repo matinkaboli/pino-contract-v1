@@ -36,13 +36,13 @@ contract Proxy is Ownable {
     /// @notice Approves an ERC20 token to lendingPool and wethGateway
     /// @param _token ERC20 token address
     function approveToken(IERC20 _token, address[] calldata _spenders) external onlyOwner {
-      for (uint8 i = 0; i < _spenders.length;) {
-          _token.safeApprove(_spenders[i], type(uint256).max);
+        for (uint8 i = 0; i < _spenders.length;) {
+            _token.safeApprove(_spenders[i], type(uint256).max);
 
-          unchecked {
-            ++i;
-          }
-      }
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     function unwrapWETH9(address recipient) internal {
