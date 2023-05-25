@@ -23,12 +23,14 @@ contract Compound is Proxy {
     /// @param _permit2 Address of Permit2 contract
     /// @param _tokens List of ERC20 tokens used in Compound V2
     /// @param _cTokens List of ERC20 cTokens used in Compound V2
-    constructor(Permit2 _permit2, IWETH9 _weth, IERC20[] memory _tokens, address[] memory _cTokens) Proxy(_permit2, _weth) {
+    constructor(Permit2 _permit2, IWETH9 _weth, IERC20[] memory _tokens, address[] memory _cTokens)
+        Proxy(_permit2, _weth)
+    {
         for (uint8 i = 0; i < _tokens.length;) {
             _tokens[i].safeApprove(_cTokens[i], type(uint256).max);
 
             unchecked {
-              ++i;
+                ++i;
             }
         }
     }

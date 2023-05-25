@@ -135,11 +135,10 @@ contract AaveV3 is Proxy {
     /// @param _rateMode Rate mode, 1 for stable and 2 for variable
     /// @param _proxyFee Fee of the proxy contract
     function repayETH(uint256 _rateMode, uint256 _proxyFee) external payable {
-        WETH.deposit{ value: msg.value - _proxyFee}();
+        WETH.deposit{value: msg.value - _proxyFee}();
 
         pool.repay(address(WETH), msg.value - _proxyFee, _rateMode, msg.sender);
 
         unwrapWETH9(msg.sender);
     }
 }
-

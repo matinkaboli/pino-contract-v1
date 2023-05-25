@@ -19,9 +19,14 @@ interface Pool {
 contract Curve3Token is CurvePool {
     using SafeERC20 for IERC20;
 
-    constructor(Permit2 _permit2, IWETH9 _weth, address _pool, address[] memory _tokens, address _token, uint8 _ethIndex)
-        CurvePool(_permit2, _weth, _pool, _tokens, _token, _ethIndex)
-    {}
+    constructor(
+        Permit2 _permit2,
+        IWETH9 _weth,
+        address _pool,
+        address[] memory _tokens,
+        address _token,
+        uint8 _ethIndex
+    ) CurvePool(_permit2, _weth, _pool, _tokens, _token, _ethIndex) {}
 
     /// @notice Adds liquidity to a pool
     /// @param _amounts Amounts of the tokens respectively
