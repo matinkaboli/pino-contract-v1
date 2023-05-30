@@ -21,7 +21,9 @@ contract SwapAggregators is Proxy {
     /// @param _oInch 1Inch contract address
     /// @param _paraswap Paraswap contract address
     /// @param _tokens ERC20 tokens that get allowances
-    constructor(Permit2 _permit2, IWETH9 _weth, address _oInch, address _paraswap, IERC20[] memory _tokens) Proxy(_permit2, _weth) {
+    constructor(Permit2 _permit2, IWETH9 _weth, address _oInch, address _paraswap, IERC20[] memory _tokens)
+        Proxy(_permit2, _weth)
+    {
         OInch = _oInch;
         Paraswap = _paraswap;
 
@@ -101,6 +103,54 @@ contract SwapAggregators is Proxy {
         (bool success,) = Paraswap.call{value: msg.value - _proxyFee}(_data);
 
         require(success, "Failed");
+    }
+
+    /// @notice Swaps using 0x protocol
+    /// @dev Uses permit2 to receive user tokens
+    /// @param _receiveToken The token that user wants to receive
+    /// @param _swapTarget Swap target address, used for sending _data
+    /// @param _proxyFee Fee of the proxy contract
+    /// @param _permit Permit2 instance
+    /// @param _signature Signature used for Permit2
+    /// @param _data 0x protocol generated data from API
+    function swap0x(
+        IERC20 _receiveToken,
+        address _swapTarget,
+        uint24 _proxyFee,
+        ISignatureTransfer.PermitTransferFrom calldata _permit,
+        bytes calldata _signature,
+        bytes calldata _data
+    ) public payable {
+        permit2.permitTransferFrom(
+            _permit,
+            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
+            msg.sender,
+            _signature
+        );
+
+        (bool success,) = payable(_swapTarget).call{value: msg.value - _proxyFee}(_data);
+
+        require(success, "Failed");
+
+        sweepToken(_receiveToken);
+    }
+
+    /// @notice Swaps using 0x protocol
+    /// @param _receiveToken The token that user wants to receive
+    /// @param _swapTarget Swap target address, used for sending _data
+    /// @param _proxyFee Fee of the proxy contract
+    /// @param _data 0x protocol generated data from API
+    function swap0xETH(
+        IERC20 _receiveToken,
+        address _swapTarget,
+        uint24 _proxyFee,
+        bytes calldata _data
+    ) public payable {
+        (bool success,) = payable(_swapTarget).call{value: msg.value - _proxyFee}(_data);
+
+        require(success, "Failed");
+
+        sweepToken(_receiveToken);
     }
 
     /// @notice Sets new addresses for 1Inch and Paraswap protocols
