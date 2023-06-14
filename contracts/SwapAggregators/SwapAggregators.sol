@@ -140,12 +140,10 @@ contract SwapAggregators is Proxy {
     /// @param _swapTarget Swap target address, used for sending _data
     /// @param _proxyFee Fee of the proxy contract
     /// @param _data 0x protocol generated data from API
-    function swap0xETH(
-        IERC20 _receiveToken,
-        address _swapTarget,
-        uint24 _proxyFee,
-        bytes calldata _data
-    ) public payable {
+    function swap0xETH(IERC20 _receiveToken, address _swapTarget, uint24 _proxyFee, bytes calldata _data)
+        public
+        payable
+    {
         (bool success,) = payable(_swapTarget).call{value: msg.value - _proxyFee}(_data);
 
         require(success, "Failed");
