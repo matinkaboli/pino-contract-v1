@@ -33,9 +33,16 @@ const config: HardhatUserConfig = {
         blockNumber: Number(process.env.BLOCK_NUMBER),
       },
     },
+    arbitrum: {
+      url: process.env.ARBITRUM_URL,
+      accounts: [`0x${process.env.ARBITRUM_PRIVATE_KEY}`],
+    },
   },
   mocha: {
     timeout: 100000000,
+  },
+  etherscan: {
+    apiKey: process.env.ARBISCAN,
   },
 };
 
