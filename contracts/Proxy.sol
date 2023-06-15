@@ -27,7 +27,7 @@ contract Proxy is Ownable {
     function withdrawAdmin() public onlyOwner {
         require(address(this).balance > 0);
 
-        sendETH(owner(), address(this).balance);
+        _sendETH(owner(), address(this).balance);
     }
 
     /// @notice Approves an ERC20 token to lendingPool and wethGateway
@@ -35,7 +35,7 @@ contract Proxy is Ownable {
     /// @param _spenders ERC20 token address
     function approveToken(IERC20 _token, address[] calldata _spenders) external onlyOwner {
         for (uint8 i = 0; i < _spenders.length;) {
-            _token.safeApprove(_spenders[i], type(uint256).max);
+            _approve(_token, _spenders[i]);
 
             unchecked {
                 ++i;
@@ -62,11 +62,26 @@ contract Proxy is Ownable {
         }
     }
 
+    /// @notice Transfers ERC20 token to recipient
+    /// @param _recipient The destination address
+    /// @param _token ERC20 token address
+    /// @param _amount Amount to transfer
+    function _send(address _token, address _recipient, uint256 _amount) internal {
+        IERC20(_token).safeTransfer(_recipient, _amount);
+    }
+
+    /// @notice Permits _spender to spend max amount of ERC20 from the contract
+    /// @param _token ERC20 token address
+    /// @param _spender Spender address
+    function _approve(address _token, address _spender) internal {
+        IERC20(_token).safeApprove(_spender, type(uint256).max);
+    }
+
     /// @notice Sends ETH to the destination
     /// @param _recipient The destination address
     /// @param _amount Ether amount
     function _sendETH(address _recipient, uint256 _amount) internal {
-        (bool success,) = payable(recipient).call{value: amount}("");
+        (bool success,) = payable(_recipient).call{value: _amount}("");
 
         _require(success, Errors.FAILED_TO_SEND_ETHER);
     }
