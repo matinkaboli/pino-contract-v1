@@ -107,6 +107,7 @@ describe('Uniswap', () => {
 
       const swapParams = {
         path,
+        receiveETH: false,
         amountOutMinimum: 0,
       };
 
@@ -136,8 +137,11 @@ describe('Uniswap', () => {
         contract.address,
       );
 
+      const params = {
+        receiveETH: false,
+      };
+
       const pathBytes = await uniswapOrderRoute(
-        provider,
         account.address,
         fromReadableAmount(3000, 18),
         WETH_TOKEN,
@@ -152,6 +156,7 @@ describe('Uniswap', () => {
       const lusdBalanceBefore = await lusd.balanceOf(account.address);
 
       await contract.swapExactInputMultihopMultiPool(
+        params,
         pathBytes,
         permit,
         signature,
@@ -184,6 +189,7 @@ describe('Uniswap', () => {
       const swapParams = {
         path,
         amountOut,
+        receiveETH: false,
       };
 
       const wethBalanceBefore = await weth.balanceOf(account.address);
@@ -197,6 +203,44 @@ describe('Uniswap', () => {
       const wethBalanceAfter = await weth.balanceOf(account.address);
 
       expect(wethBalanceAfter).to.gt(wethBalanceBefore);
+    });
+
+    it('Should swap DAI > USDC > WETH exact output and receive ETH instead', async () => {
+      const { sign, contract } = await loadFixture(deploy);
+
+      const amount = 500n * 10n ** 18n;
+      const amountOut = 1n * 10n ** 17n;
+
+      const { permit, signature } = await sign(
+        {
+          amount,
+          token: DAI,
+        },
+        contract.address,
+      );
+
+      const path = ethers.utils.solidityPack(
+        ['address', 'uint24', 'address', 'uint24', 'address'],
+        [WETH, 3000, USDC, 3000, DAI],
+      );
+
+      const swapParams = {
+        path,
+        amountOut,
+        receiveETH: true,
+      };
+
+      const ethBalanceBefore = await account.getBalance();
+
+      await contract.swapExactOutputMultihop(
+        swapParams,
+        permit,
+        signature,
+      );
+
+      const ethBalanceAfter = await account.getBalance();
+
+      expect(ethBalanceAfter).to.gt(ethBalanceBefore);
     });
 
     it('Should swap ETH > USDC > DAI exact output ETH', async () => {
@@ -238,6 +282,7 @@ describe('Uniswap', () => {
 
       const swapParams = {
         path,
+        amountIn: amount,
         amountOutMinimum: 0,
       };
 
@@ -357,6 +402,7 @@ describe('Uniswap', () => {
         fee,
         tokenOut: USDC,
         amountOut,
+        receiveETH: false,
         sqrtPriceLimitX96: 0,
       };
 
@@ -392,6 +438,7 @@ describe('Uniswap', () => {
         fee,
         tokenOut: USDC,
         amountOut,
+        receiveETH: false,
         sqrtPriceLimitX96: 0,
       };
 
@@ -408,6 +455,40 @@ describe('Uniswap', () => {
   });
 
   describe('Swap ERC20 to ETH', () => {
+    it('Should swap USDT to ETH using (exact output)', async () => {
+      const { contract, sign } = await loadFixture(deploy);
+
+      const fee = 100n;
+      const amount = 2000n * 10n ** 6n;
+      const amountOut = 1n * 10n ** 18n;
+
+      const { permit, signature } = await sign(
+        {
+          amount,
+          token: USDT,
+        },
+        contract.address,
+      );
+
+      const ethBalanceBefore = await account.getBalance();
+
+      const swapParams = {
+        fee,
+        amountOut,
+        tokenOut: WETH,
+        receiveETH: true,
+        sqrtPriceLimitX96: 0,
+      };
+
+      await contract.swapExactOutputSingle(
+        swapParams,
+        permit,
+        signature,
+      );
+
+      expect(await account.getBalance()).to.gte(ethBalanceBefore);
+    });
+
     it('Should swap IERC20 for ETH (exact input)', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
@@ -897,6 +978,8 @@ describe('Uniswap', () => {
         amountAdd1,
         amount0Min: 0,
         amount1Min: 0,
+        token0: WETH,
+        token1: USDC,
       };
 
       await contract.increaseLiquidity(
@@ -991,6 +1074,8 @@ describe('Uniswap', () => {
         amountAdd1,
         amount0Min: 0,
         amount1Min: 0,
+        token0: WETH,
+        token1: USDT,
       };
 
       await contract.increaseLiquidity(

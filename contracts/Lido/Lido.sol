@@ -54,10 +54,9 @@ contract Lido is Proxy {
     /// @notice Converts ETH to WST_ETH and transfers WST_ETH to msg.sender
     /// @param _proxyFee Fee of the proxy contract
     function ethToWstETH(uint256 _proxyFee) external payable {
-        (bool sent,) = address(WstETH).call{value: msg.value - _proxyFee}("");
-        require(sent, "Failed to send Ether");
+      _sendETH(address(WstETH), msg.value - _proxyFee);
 
-        sweepToken(IERC20(address(WstETH)));
+        _sweepToken(address(WstETH));
     }
 
     /// @notice Submits WETH to Lido protocol and transfers ST_ETH to msg.sender
@@ -103,10 +102,8 @@ contract Lido is Proxy {
 
         unwrapWETH();
 
-        (bool sent,) = address(WstETH).call{value: _permit.permitted.amount - msg.value}("");
-        require(sent, "Failed to send Ether");
-
-        sweepToken(IERC20(address(WstETH)));
+        _sendETH(address(WstETH), _permit.permitted.amount - msg.value);
+        _sweepToken(address(WstETH));
     }
 
     /// @notice Wraps ST_ETH to WST_ETH and transfers it to msg.sender
@@ -126,7 +123,7 @@ contract Lido is Proxy {
         );
 
         WstETH.wrap(_permit.permitted.amount);
-        sweepToken(IERC20(address(WstETH)));
+        _sweepToken(address(WstETH));
     }
 
     /// @notice Unwraps WST_ETH to ST_ETH and transfers it to msg.sender

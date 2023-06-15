@@ -79,7 +79,6 @@ contract Comet is Proxy {
         CometInterface.withdrawFrom(msg.sender, address(this), address(WETH), _amount);
         WETH.withdraw(_amount);
 
-        (bool success,) = msg.sender.call{value: _amount}("");
-        if (!success) revert FailedToSendEther();
+        _sendETH(msg.sender, _amount);
     }
 }

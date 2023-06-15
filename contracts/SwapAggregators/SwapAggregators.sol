@@ -132,7 +132,7 @@ contract SwapAggregators is Proxy {
 
         require(success, "Failed");
 
-        sweepToken(_receiveToken);
+        _sweepToken(address(_receiveToken));
     }
 
     /// @notice Swaps using 0x protocol
@@ -148,7 +148,7 @@ contract SwapAggregators is Proxy {
 
         require(success, "Failed");
 
-        sweepToken(_receiveToken);
+        _sweepToken(address(_receiveToken));
     }
 
     /// @notice Sets new addresses for 1Inch and Paraswap protocols
