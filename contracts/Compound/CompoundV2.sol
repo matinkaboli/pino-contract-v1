@@ -119,7 +119,6 @@ contract Compound is Proxy {
 
         uint256 balanceAfter = address(this).balance;
 
-        (bool success,) = msg.sender.call{value: balanceAfter - balanceBefore}("");
-        if (!success) revert FailedToSendEther();
+        _sendETH(msg.sender, balanceAfter - balanceBefore);
     }
 }

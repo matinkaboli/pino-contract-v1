@@ -128,7 +128,7 @@ contract AaveV3 is Proxy {
 
         pool.repay(_permit.permitted.token, _permit.permitted.amount, _rateMode, msg.sender);
 
-        sweepToken(IERC20(_permit.permitted.token));
+        _sweepToken(_permit.permitted.token);
     }
 
     /// @notice Repays ETH using WETH wrap/unwrap
@@ -139,6 +139,6 @@ contract AaveV3 is Proxy {
 
         pool.repay(address(WETH), msg.value - _proxyFee, _rateMode, msg.sender);
 
-        unwrapWETH9(msg.sender);
+        _unwrapWETH9(msg.sender);
     }
 }

@@ -33,7 +33,7 @@ contract Proxy is Ownable {
     /// @notice Approves an ERC20 token to lendingPool and wethGateway
     /// @param _token ERC20 token address
     /// @param _spenders ERC20 token address
-    function approveToken(IERC20 _token, address[] calldata _spenders) external onlyOwner {
+    function approveToken(address _token, address[] calldata _spenders) external onlyOwner {
         for (uint8 i = 0; i < _spenders.length;) {
             _approve(_token, _spenders[i]);
 
@@ -46,7 +46,7 @@ contract Proxy is Ownable {
     /// @notice Handles custom error codes
     /// @param _condition The condition, if it's false then execution is reverted
     /// @param _code Custom code, listed in Errors.sol
-    function _require(bool _condition, uint256 _code) internal {
+    function _require(bool _condition, uint256 _code) internal pure {
         if (!_condition) {
             revert ProxyError(_code);
         }
@@ -58,7 +58,7 @@ contract Proxy is Ownable {
         uint256 balanceOf = IERC20(_token).balanceOf(address(this));
 
         if (balanceOf > 0) {
-            _token.safeTransfer(msg.sender, balanceOf);
+            IERC20(_token).safeTransfer(msg.sender, balanceOf);
         }
     }
 

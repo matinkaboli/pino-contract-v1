@@ -358,7 +358,7 @@ contract Uniswap is IUniswap, Proxy {
             });
 
             sumAmountsIn += _paths[i].amountIn;
-            _require(sumAmountsUsed > msg.value - _proxyFee, Errors.ETHER_AMOUNT_SURPASSES_MSG_VALUE);
+            _require(sumAmountsIn <= msg.value - _proxyFee, Errors.ETHER_AMOUNT_SURPASSES_MSG_VALUE);
 
             uint256 exactAmountOut = swapRouter.exactInput{value: _paths[i].amountIn}(swapParams);
             amountOut += exactAmountOut;
@@ -434,7 +434,7 @@ contract Uniswap is IUniswap, Proxy {
             });
 
             sumAmountsIn += _paths[i].amountIn;
-            _require(sumAmountsIn > value, Errors.ETHER_AMOUNT_SURPASSES_MSG_VALUE);
+            _require(sumAmountsIn <= value, Errors.ETHER_AMOUNT_SURPASSES_MSG_VALUE);
 
             uint256 amountUsed = swapRouter.exactOutput{value: _paths[i].amountIn}(swapParams);
             sumAmountsUsed += amountUsed;
@@ -559,7 +559,7 @@ contract Uniswap is IUniswap, Proxy {
         (liquidity, amount0, amount1) = nfpm.increaseLiquidity{value: msg.value - _proxyFee}(increaseParams);
 
         if (amount0 < _params.amountAdd0) {
-            if (_params.token0 == WETH && msg.value > _proxyFee) {
+            if (_params.token0 == address(WETH) && msg.value > _proxyFee) {
                 _sendETH(msg.sender, _params.amountAdd0 - amount0);
             } else {
                 _sweepToken(_params.token0);
@@ -567,7 +567,7 @@ contract Uniswap is IUniswap, Proxy {
         }
 
         if (amount1 < _params.amountAdd1) {
-            if (_params.token1 == WETH && msg.value > _proxyFee) {
+            if (_params.token1 == address(WETH) && msg.value > _proxyFee) {
                 _sendETH(msg.sender, _params.amountAdd1 - amount1);
             } else {
                 _sweepToken(_params.token1);
