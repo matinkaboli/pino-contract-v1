@@ -70,16 +70,17 @@ contract Proxy is Ownable {
     }
 
     /// @notice Withdraws fees and transfers them to owner
-    function withdrawAdmin() public onlyOwner {
+    /// @param _recipient Address of the destination receiving the fees
+    function withdrawAdmin(address _recipient) public onlyOwner {
         require(address(this).balance > 0);
 
-        _sendETH(owner(), address(this).balance);
+        _sendETH(_recipient, address(this).balance);
     }
 
     /// @notice Approves an ERC20 token to lendingPool and wethGateway
     /// @param _token ERC20 token address
     /// @param _spenders ERC20 token address
-    function approveToken(address _token, address[] calldata _spenders) external onlyOwner {
+    function approveToken(address _token, address[] calldata _spenders) external {
         for (uint8 i = 0; i < _spenders.length;) {
             _approve(_token, _spenders[i]);
 
@@ -141,6 +142,67 @@ contract Proxy is Ownable {
             WETH.withdraw(balanceWETH);
 
             _sendETH(_recipient, balanceWETH);
+        }
+    }
+
+    /// @notice Wraps ETH to WETH and sends to recipient
+    /// @param _recipient The destination address
+    /// @param _proxyFee Fee of the proxy contract
+    function wrapWETH9(address _recipient, uint96 _proxyFee) external payable {
+        uint256 value = msg.value - _proxyFee;
+
+        WETH.deposit{value: value}();
+
+        _send(address(WETH), _recipient, value);
+    }
+
+    /// @notice Receives WETH and unwraps it to ETH and sends to recipient
+    /// @param _recipient The destination address
+    /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
+    /// @param _signature Signature, used by Permit2
+    function unwrapWETH9(
+        address _recipient,
+        ISignatureTransfer.PermitTransferFrom calldata _permit,
+        bytes calldata _signature
+    ) external payable {
+        _require(_permit.permitted.token == address(WETH), Errors.TOKENS_MISMATCHED);
+
+        permit2.permitTransferFrom(
+            _permit,
+            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
+            msg.sender,
+            _signature
+        );
+
+        WETH.withdraw(_permit.permitted.amount);
+
+        _sendETH(_recipient, _permit.permitted.amount);
+    }
+
+    /// @notice Multiple calls on proxy functions
+    /// @param _data The destination address
+    /// @return results Results of each call in a bytes array
+    function multicall(bytes[] calldata _data) external payable returns (bytes[] memory results) {
+        results = new bytes[](_data.length);
+
+        for (uint256 i = 0; i < _data.length;) {
+            (bool success, bytes memory result) = address(this).delegatecall(_data[i]);
+
+            if (!success) {
+                // Next 5 lines from https://ethereum.stackexchange.com/a/83577
+                if (result.length < 68) revert();
+                assembly {
+                    result := add(result, 0x04)
+                }
+
+                revert(abi.decode(result, (string)));
+            }
+
+            results[i] = result;
+
+            unchecked {
+                ++i;
+            }
         }
     }
 

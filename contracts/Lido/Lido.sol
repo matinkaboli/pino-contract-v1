@@ -54,7 +54,7 @@ contract Lido is Proxy {
     /// @notice Converts ETH to WST_ETH and transfers WST_ETH to msg.sender
     /// @param _proxyFee Fee of the proxy contract
     function ethToWstETH(uint256 _proxyFee) external payable {
-      _sendETH(address(WstETH), msg.value - _proxyFee);
+        _sendETH(address(WstETH), msg.value - _proxyFee);
 
         _sweepToken(address(WstETH));
     }
