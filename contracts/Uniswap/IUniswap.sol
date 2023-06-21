@@ -266,6 +266,8 @@ interface IUniswap {
         uint256 amount1Min;
         address token0;
         address token1;
+        uint256 amount0Desired;
+        uint256 amount1Desired;
     }
 
     /// @notice Creates a new position wrapped in a NFT

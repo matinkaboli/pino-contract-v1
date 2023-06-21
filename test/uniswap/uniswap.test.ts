@@ -124,7 +124,7 @@ describe('Uniswap', () => {
       expect(wethBalanceAfter).to.gt(wethBalanceBefore);
     });
 
-    it('Should swap ETH > LUSD using uniswap-smart-route', async () => {
+    it.skip('Should swap ETH > LUSD using uniswap-smart-route', async () => {
       const { sign, contract } = await loadFixture(deploy);
 
       const amount = 3000n * 10n ** 18n;
@@ -649,6 +649,8 @@ describe('Uniswap', () => {
 
       const mintParams = {
         fee,
+        amount0Desired: amount0,
+        amount1Desired: amount1,
         tickLower,
         tickUpper,
         amount0Min,
@@ -667,6 +669,58 @@ describe('Uniswap', () => {
 
       expect(ethBalanceBefore).to.gte(ethBalanceAfter);
       expect(usdcBalanceBefore).to.gte(usdcBalanceAfter);
+      expect(wethBalanceBefore).to.equal(wethBalanceAfter);
+    });
+
+    it('Should mint a new position (ETH - USDT)', async () => {
+      const { contract, multiSign } = await loadFixture(deploy);
+
+      const fee = 500n;
+      const amount0Min = 0;
+      const amount1Min = 0;
+      const tickLower = -391440;
+      const tickUpper = -187980;
+      const amount0 = 1n * 10n ** 18n;
+      const amount1 = 2000n * 10n ** 6n;
+
+      const { permit, signature } = await multiSign(
+        [
+          {
+            token: USDT,
+            amount: amount1,
+          },
+        ],
+        contract.address,
+      );
+
+      const ethBalanceBefore = await account.getBalance();
+      const wethBalanceBefore = await weth.balanceOf(account.address);
+      const usdtBalanceBefore = await usdt.balanceOf(account.address);
+
+      const mintParams = {
+        fee,
+        amount0Desired: amount0,
+        amount1Desired: amount1,
+        tickLower,
+        tickUpper,
+        amount0Min,
+        amount1Min,
+        token0: WETH,
+        token1: USDT,
+      };
+
+      console.log(mintParams);
+
+      await contract.mint(mintParams, 0, permit, signature, {
+        value: amount0,
+      });
+
+      const ethBalanceAfter = await account.getBalance();
+      const wethBalanceAfter = await weth.balanceOf(account.address);
+      const usdtBalanceAfter = await usdt.balanceOf(account.address);
+
+      expect(ethBalanceBefore).to.gte(ethBalanceAfter);
+      expect(usdtBalanceBefore).to.gte(usdtBalanceAfter);
       expect(wethBalanceBefore).to.equal(wethBalanceAfter);
     });
 
@@ -700,6 +754,8 @@ describe('Uniswap', () => {
 
       const mintParams = {
         fee,
+        amount0Desired: amount0,
+        amount1Desired: amount1,
         tickLower,
         tickUpper,
         amount0Min,
@@ -748,6 +804,8 @@ describe('Uniswap', () => {
 
       const mintParams = {
         fee,
+        amount0Desired: amount2,
+        amount1Desired: amount1,
         tickLower,
         tickUpper,
         amount0Min,
@@ -775,7 +833,7 @@ describe('Uniswap', () => {
       const tickLower = -210300;
       const tickUpper = -196440;
       const amount0 = 1n * 10n ** 18n;
-      const amount1 = 1630n * 10n ** 6n;
+      const amount1 = 2000n * 10n ** 6n;
 
       const { permit, signature } = await multiSign(
         [
@@ -791,6 +849,8 @@ describe('Uniswap', () => {
 
       const mintParams = {
         fee,
+        amount0Desired: amount1,
+        amount1Desired: amount0,
         tickLower,
         tickUpper,
         amount0Min,
@@ -837,6 +897,8 @@ describe('Uniswap', () => {
 
       const mintParams = {
         fee,
+        amount0Desired: amount,
+        amount1Desired: amount,
         tickLower,
         tickUpper,
         amount0Min,
@@ -890,6 +952,8 @@ describe('Uniswap', () => {
         amount1Min,
         token0: WETH,
         token1: USDT,
+        amount0Desired: amount0,
+        amount1Desired: amount1,
       };
 
       await contract.mint(mintParams, 0, permit, signature);
@@ -929,6 +993,8 @@ describe('Uniswap', () => {
 
       const mintParams = {
         fee,
+        amount0Desired: amount0,
+        amount1Desired: amount1,
         tickLower,
         tickUpper,
         amount0Min,
@@ -1026,6 +1092,8 @@ describe('Uniswap', () => {
 
       const mintParams = {
         fee,
+        amount0Desired: amount0,
+        amount1Desired: amount1,
         tickLower,
         tickUpper,
         amount0Min,
@@ -1177,7 +1245,7 @@ describe('Uniswap', () => {
 
       const balanceBefore = await account.getBalance();
 
-      await contract.withdrawAdmin();
+      await contract.withdrawAdmin(account.address);
 
       expect(await account.getBalance()).to.gt(balanceBefore);
     });

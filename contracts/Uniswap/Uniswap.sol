@@ -50,6 +50,7 @@ pragma abicoder v2;
 
 import "../Proxy.sol";
 import "./IUniswap.sol";
+import "hardhat/console.sol";
 import "../interfaces/IWETH9.sol";
 import "../interfaces/INonfungiblePositionManager.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -461,31 +462,20 @@ contract Uniswap is IUniswap, Proxy {
     ) external payable returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1) {
         uint256 tokensLen = _permit.permitted.length;
 
-        require(_permit.permitted[0].token == _params.token0);
-
         ISignatureTransfer.SignatureTransferDetails[] memory details =
             new ISignatureTransfer.SignatureTransferDetails[](tokensLen);
 
         details[0].to = address(this);
         details[0].requestedAmount = _permit.permitted[0].amount;
 
-        // Assume that _permit.permitted.length == 1
-        address token1 = address(WETH);
-        uint256 amount1Desired = msg.value - _proxyFee;
-
         if (tokensLen > 1) {
             details[1].to = address(this);
             details[1].requestedAmount = _permit.permitted[1].amount;
-
-            token1 = _permit.permitted[1].token;
-            amount1Desired = _permit.permitted[1].amount;
-        } else {
-            if (_params.token0 == address(WETH) || _params.token1 == address(WETH)) {
-                WETH.deposit{value: amount1Desired}();
-            }
         }
 
-        _require(token1 == _params.token1, Errors.TOKENS_MISMATCHED);
+        if (msg.value > _proxyFee) {
+          WETH.deposit{ value: msg.value - _proxyFee }();
+        }
 
         permit2.permitTransferFrom(_permit, details, msg.sender, _signature);
 
@@ -495,31 +485,45 @@ contract Uniswap is IUniswap, Proxy {
             token1: _params.token1,
             tickLower: _params.tickLower,
             tickUpper: _params.tickUpper,
-            amount0Desired: _permit.permitted[0].amount,
-            amount1Desired: amount1Desired,
+            amount0Desired: _params.amount0Desired,
+            amount1Desired: _params.amount1Desired,
             amount0Min: _params.amount0Min,
             amount1Min: _params.amount1Min,
             recipient: msg.sender,
             deadline: block.timestamp
         });
 
+        console.log("WETH BALANCE BEFORE: %s", WETH.balanceOf(address(this)));
+
         (tokenId, liquidity, amount0, amount1) = nfpm.mint(mintParams);
 
-        if (amount0 < _permit.permitted[0].amount) {
-            _send(_permit.permitted[0].token, msg.sender, _permit.permitted[0].amount - amount0);
-        }
+        console.log("WETH BALANCE AFTER %s", WETH.balanceOf(address(this)));
 
-        if (amount1 < amount1Desired) {
-            uint256 refund1 = amount1Desired - amount1;
-
-            if (tokensLen > 1) {
-                _send(token1, msg.sender, refund1);
-            } else {
-                WETH.withdraw(refund1);
-
-                _sendETH(msg.sender, refund1);
-            }
-        }
+        // if (amount0 < _params.amount0Desired) {
+        //     uint256 refundAmount = _params.amount0Desired - amount0;
+        //
+        //     console.log("%s", refundAmount);
+        //     console.log("%s", _permit.permitted[0].token);
+        //     console.log("%s", _params.token0);
+        //     console.log("%s", address(this).balance);
+        //
+        //     if (_permit.permitted[0].token != _params.token0) {
+        //       _unwrapWETH9(msg.sender);
+        //     } else {
+        //       console.log("USDC SEND");
+        //         _send(_permit.permitted[0].token, msg.sender, refundAmount);
+        //     }
+        // }
+        
+        // if (amount1 < amount1Desired) {
+        //     uint256 refundAmount = _params.amount1Desired - amount1;
+        //
+        //     if (_permit.permitted[1].token != _params.token1) {
+        //         _sendETH(msg.sender, refundAmount);
+        //     } else {
+        //         _send(_permit.permitted[1].token, msg.sender, refundAmount);
+        //     }
+        // }
 
         emit Mint(tokenId);
     }

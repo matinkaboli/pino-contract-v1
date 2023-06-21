@@ -179,13 +179,32 @@ contract Proxy is Ownable {
         _sendETH(_recipient, _permit.permitted.amount);
     }
 
+    // /// @notice Multiple calls on proxy functions
+    // /// @param _data The destination address
+    // /// @return results Results of each call in a bytes array
+    // function multicall(bytes[] calldata _data) public payable returns (bytes[] memory results) {
+    //     results = new bytes[](_data.length);
+    //
+    //     for (uint256 i = 0; i < _data.length; i++) {
+    //         (bool success, bytes memory result) = address(this).delegatecall(_data[i]);
+    //
+    //         if (!success) {
+    //             // Next 5 lines from https://ethereum.stackexchange.com/a/83577
+    //             if (result.length < 68) revert();
+    //             assembly {
+    //                 result := add(result, 0x04)
+    //             }
+    //             revert(abi.decode(result, (string)));
+    //         }
+    //
+    //         results[i] = result;
+    //     }
+    // }
+
     /// @notice Multiple calls on proxy functions
     /// @param _data The destination address
-    /// @return results Results of each call in a bytes array
-    function multicall(bytes[] calldata _data) external payable returns (bytes[] memory results) {
-        results = new bytes[](_data.length);
-
-        for (uint256 i = 0; i < _data.length;) {
+    function multicall(bytes[] calldata _data) external payable {
+        for (uint256 i = 0; i < _data.length; i++) {
             (bool success, bytes memory result) = address(this).delegatecall(_data[i]);
 
             if (!success) {
@@ -194,14 +213,7 @@ contract Proxy is Ownable {
                 assembly {
                     result := add(result, 0x04)
                 }
-
                 revert(abi.decode(result, (string)));
-            }
-
-            results[i] = result;
-
-            unchecked {
-                ++i;
             }
         }
     }
