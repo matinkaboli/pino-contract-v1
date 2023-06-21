@@ -48,9 +48,8 @@
 pragma solidity 0.8.18;
 pragma abicoder v2;
 
-import "../Proxy.sol";
+import "../Pino.sol";
 import "./IUniswap.sol";
-import "hardhat/console.sol";
 import "../interfaces/IWETH9.sol";
 import "../interfaces/INonfungiblePositionManager.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -61,7 +60,7 @@ import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 /// @author Matin Kaboli
 /// @notice Mints and Increases liquidity and swaps tokens
 /// @dev This contract uses Permit2
-contract Uniswap is IUniswap, Proxy {
+contract Uniswap is IUniswap, Pino {
     using SafeERC20 for IERC20;
 
     event Mint(uint256 tokenId);
@@ -69,51 +68,31 @@ contract Uniswap is IUniswap, Proxy {
     ISwapRouter public immutable swapRouter;
     INonfungiblePositionManager public immutable nfpm;
 
-    constructor(
-        Permit2 _permit2,
-        IWETH9 _weth,
-        ISwapRouter _swapRouter,
-        INonfungiblePositionManager _nfpm,
-        IERC20[] memory _tokens
-    ) Proxy(_permit2, _weth) {
+    constructor(Permit2 _permit2, IWETH9 _weth, ISwapRouter _swapRouter, INonfungiblePositionManager _nfpm)
+        Pino(_permit2, _weth)
+    {
         nfpm = _nfpm;
         swapRouter = _swapRouter;
-
-        for (uint8 i = 0; i < _tokens.length; ++i) {
-            _tokens[i].safeApprove(address(_nfpm), type(uint256).max);
-            _tokens[i].safeApprove(address(_swapRouter), type(uint256).max);
-        }
     }
 
     /// @inheritdoc IUniswap
-    function swapExactInputSingle(
-        IUniswap.SwapExactInputSingleParams calldata _params,
-        ISignatureTransfer.PermitTransferFrom calldata _permit,
-        bytes calldata _signature
-    ) external payable returns (uint256 amountOut) {
-        permit2.permitTransferFrom(
-            _permit,
-            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
-            msg.sender,
-            _signature
-        );
-
+    function swapExactInputSingle(IUniswap.SwapExactInputSingleParams calldata _params)
+        external
+        payable
+        returns (uint256 amountOut)
+    {
         amountOut = swapRouter.exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
                 fee: _params.fee,
-                tokenIn: _permit.permitted.token,
+                tokenIn: _params.tokenIn,
                 tokenOut: _params.tokenOut,
                 deadline: block.timestamp,
-                amountIn: _permit.permitted.amount,
+                amountIn: _params.amountIn,
                 amountOutMinimum: _params.amountOutMinimum,
                 sqrtPriceLimitX96: _params.sqrtPriceLimitX96,
-                recipient: _params.receiveETH ? address(this) : msg.sender
+                recipient: address(this)
             })
         );
-
-        if (_params.receiveETH) {
-            _unwrapWETH9(msg.sender);
-        }
     }
 
     /// @inheritdoc IUniswap
@@ -139,36 +118,23 @@ contract Uniswap is IUniswap, Proxy {
     }
 
     /// @inheritdoc IUniswap
-    function swapExactOutputSingle(
-        IUniswap.SwapExactOutputSingleParams calldata _params,
-        ISignatureTransfer.PermitTransferFrom calldata _permit,
-        bytes calldata _signature
-    ) external payable returns (uint256 amountIn) {
-        permit2.permitTransferFrom(
-            _permit,
-            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
-            msg.sender,
-            _signature
-        );
-
+    function swapExactOutputSingle(IUniswap.SwapExactOutputSingleParams calldata _params)
+        external
+        payable
+        returns (uint256 amountIn)
+    {
         amountIn = swapRouter.exactOutputSingle(
             ISwapRouter.ExactOutputSingleParams({
-                tokenIn: _permit.permitted.token,
+                tokenIn: _params.tokenIn,
                 tokenOut: _params.tokenOut,
                 fee: _params.fee,
-                recipient: _params.receiveETH ? address(this) : msg.sender,
+                recipient: address(this),
                 deadline: block.timestamp,
                 amountOut: _params.amountOut,
-                amountInMaximum: _permit.permitted.amount,
+                amountInMaximum: _params.amountInMaximum,
                 sqrtPriceLimitX96: _params.sqrtPriceLimitX96
             })
         );
-
-        if (_params.receiveETH) {
-            _unwrapWETH9(msg.sender);
-        }
-
-        _sweepToken(_permit.permitted.token);
     }
 
     /// @inheritdoc IUniswap
@@ -191,40 +157,23 @@ contract Uniswap is IUniswap, Proxy {
                 sqrtPriceLimitX96: _params.sqrtPriceLimitX96
             })
         );
-
-        if (amountIn < value) {
-            _sendETH(msg.sender, value - amountIn);
-        }
     }
 
     /// @inheritdoc IUniswap
-    function swapExactInputMultihop(
-        SwapExactInputMultihopParams calldata _params,
-        ISignatureTransfer.PermitTransferFrom calldata _permit,
-        bytes calldata _signature
-    ) external payable returns (uint256 amountOut) {
-        permit2.permitTransferFrom(
-            _permit,
-            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
-            msg.sender,
-            _signature
-        );
-
+    function swapExactInputMultihop(SwapExactInputMultihopParams calldata _params)
+        external
+        payable
+        returns (uint256 amountOut)
+    {
         ISwapRouter.ExactInputParams memory swapParams = ISwapRouter.ExactInputParams({
             path: _params.path,
             deadline: block.timestamp,
-            amountIn: _permit.permitted.amount,
+            amountIn: _params.amountIn,
             amountOutMinimum: _params.amountOutMinimum,
-            recipient: _params.receiveETH ? address(this) : msg.sender
+            recipient: address(this)
         });
 
         amountOut = swapRouter.exactInput(swapParams);
-
-        if (_params.receiveETH) {
-            _unwrapWETH9(msg.sender);
-        }
-
-        _sweepToken(_permit.permitted.token);
     }
 
     /// @inheritdoc IUniswap
@@ -247,33 +196,20 @@ contract Uniswap is IUniswap, Proxy {
     }
 
     /// @inheritdoc IUniswap
-    function swapExactOutputMultihop(
-        SwapExactOutputMultihopParams calldata _params,
-        ISignatureTransfer.PermitTransferFrom calldata _permit,
-        bytes calldata _signature
-    ) external payable returns (uint256 amountIn) {
-        permit2.permitTransferFrom(
-            _permit,
-            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
-            msg.sender,
-            _signature
-        );
-
+    function swapExactOutputMultihop(SwapExactOutputMultihopParams calldata _params)
+        external
+        payable
+        returns (uint256 amountIn)
+    {
         ISwapRouter.ExactOutputParams memory swapParams = ISwapRouter.ExactOutputParams({
             path: _params.path,
-            recipient: _params.receiveETH ? address(this) : msg.sender,
+            recipient: address(this),
             deadline: block.timestamp,
             amountOut: _params.amountOut,
-            amountInMaximum: _permit.permitted.amount
+            amountInMaximum: _params.amountInMaximum
         });
 
         amountIn = swapRouter.exactOutput(swapParams);
-
-        if (_params.receiveETH) {
-            _unwrapWETH9(msg.sender);
-        }
-
-        _sweepToken(_permit.permitted.token);
     }
 
     /// @inheritdoc IUniswap
@@ -293,34 +229,22 @@ contract Uniswap is IUniswap, Proxy {
         });
 
         amountIn = swapRouter.exactOutput{value: value}(swapParams);
-
-        if (amountIn < value) {
-            _sendETH(msg.sender, value - amountIn);
-        }
     }
 
     /// @inheritdoc IUniswap
-    function swapExactInputMultihopMultiPool(
-        SwapMultihopMultiPoolParams calldata _params,
-        SwapMultihopPath[] calldata _paths,
-        ISignatureTransfer.PermitTransferFrom calldata _permit,
-        bytes calldata _signature
-    ) external payable returns (uint256) {
-        uint256 amountOut = 0;
-
-        permit2.permitTransferFrom(
-            _permit,
-            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
-            msg.sender,
-            _signature
-        );
+    function swapExactInputMultihopMultiPool(SwapMultihopPath[] calldata _paths)
+        external
+        payable
+        returns (uint256 amountOut)
+    {
+        amountOut = 0;
 
         for (uint8 i = 0; i < _paths.length;) {
             ISwapRouter.ExactInputParams memory swapParams = ISwapRouter.ExactInputParams({
                 path: _paths[i].path,
                 deadline: block.timestamp,
                 amountIn: _paths[i].amountIn,
-                recipient: _params.receiveETH ? address(this) : msg.sender,
+                recipient: address(this),
                 amountOutMinimum: _paths[i].amountOutMinimum
             });
 
@@ -332,21 +256,15 @@ contract Uniswap is IUniswap, Proxy {
                 ++i;
             }
         }
-
-        if (_params.receiveETH) {
-            _unwrapWETH9(msg.sender);
-        }
-
-        return amountOut;
     }
 
     /// @inheritdoc IUniswap
     function swapExactInputMultihopMultiPoolETH(SwapMultihopPath[] calldata _paths, uint256 _proxyFee)
         external
         payable
-        returns (uint256)
+        returns (uint256 amountOut)
     {
-        uint256 amountOut = 0;
+        amountOut = 0;
         uint256 sumAmountsIn = 0;
 
         for (uint8 i = 0; i < _paths.length;) {
@@ -359,7 +277,7 @@ contract Uniswap is IUniswap, Proxy {
             });
 
             sumAmountsIn += _paths[i].amountIn;
-            _require(sumAmountsIn <= msg.value - _proxyFee, Errors.ETHER_AMOUNT_SURPASSES_MSG_VALUE);
+            _require(sumAmountsIn <= msg.value - _proxyFee, ErrorCodes.ETHER_AMOUNT_SURPASSES_MSG_VALUE);
 
             uint256 exactAmountOut = swapRouter.exactInput{value: _paths[i].amountIn}(swapParams);
             amountOut += exactAmountOut;
@@ -368,25 +286,15 @@ contract Uniswap is IUniswap, Proxy {
                 ++i;
             }
         }
-
-        return amountOut;
     }
 
     /// @inheritdoc IUniswap
-    function swapExactOutputMultihopMultiPool(
-        SwapMultihopMultiPoolParams calldata _params,
-        SwapMultihopPath[] calldata _paths,
-        ISignatureTransfer.PermitTransferFrom calldata _permit,
-        bytes calldata _signature
-    ) external payable returns (uint256) {
-        uint256 amountIn = 0;
-
-        permit2.permitTransferFrom(
-            _permit,
-            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
-            msg.sender,
-            _signature
-        );
+    function swapExactOutputMultihopMultiPool(SwapMultihopPath[] calldata _paths)
+        external
+        payable
+        returns (uint256 amountIn)
+    {
+        amountIn = 0;
 
         for (uint8 i = 0; i < _paths.length;) {
             ISwapRouter.ExactOutputParams memory swapParams = ISwapRouter.ExactOutputParams({
@@ -394,7 +302,7 @@ contract Uniswap is IUniswap, Proxy {
                 deadline: block.timestamp,
                 amountInMaximum: _paths[i].amountIn,
                 amountOut: _paths[i].amountOutMinimum,
-                recipient: _params.receiveETH ? address(this) : msg.sender
+                recipient: address(this)
             });
 
             uint256 exactAmountIn = swapRouter.exactOutput(swapParams);
@@ -404,26 +312,17 @@ contract Uniswap is IUniswap, Proxy {
                 ++i;
             }
         }
-
-        if (_params.receiveETH) {
-            _unwrapWETH9(msg.sender);
-        }
-
-        _sweepToken(_permit.permitted.token);
-
-        return amountIn;
     }
 
     /// @inheritdoc IUniswap
     function swapExactOutputMultihopMultiPoolETH(SwapMultihopPath[] calldata _paths, uint256 _proxyFee)
         external
         payable
-        returns (uint256)
+        returns (uint256 amountIn)
     {
-        uint256 amountIn = 0;
+        amountIn = 0;
         uint256 value = msg.value - _proxyFee;
         uint256 sumAmountsIn = 0;
-        uint256 sumAmountsUsed = 0;
 
         for (uint8 i = 0; i < _paths.length;) {
             ISwapRouter.ExactOutputParams memory swapParams = ISwapRouter.ExactOutputParams({
@@ -435,50 +334,23 @@ contract Uniswap is IUniswap, Proxy {
             });
 
             sumAmountsIn += _paths[i].amountIn;
-            _require(sumAmountsIn <= value, Errors.ETHER_AMOUNT_SURPASSES_MSG_VALUE);
+            _require(sumAmountsIn <= value, ErrorCodes.ETHER_AMOUNT_SURPASSES_MSG_VALUE);
 
             uint256 amountUsed = swapRouter.exactOutput{value: _paths[i].amountIn}(swapParams);
-            sumAmountsUsed += amountUsed;
             amountIn += amountUsed;
 
             unchecked {
                 ++i;
             }
         }
-
-        if (sumAmountsUsed < value) {
-            _sendETH(msg.sender, value - sumAmountsUsed);
-        }
-
-        return amountIn;
     }
 
     /// @inheritdoc IUniswap
-    function mint(
-        IUniswap.MintParams calldata _params,
-        uint256 _proxyFee,
-        ISignatureTransfer.PermitBatchTransferFrom calldata _permit,
-        bytes calldata _signature
-    ) external payable returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1) {
-        uint256 tokensLen = _permit.permitted.length;
-
-        ISignatureTransfer.SignatureTransferDetails[] memory details =
-            new ISignatureTransfer.SignatureTransferDetails[](tokensLen);
-
-        details[0].to = address(this);
-        details[0].requestedAmount = _permit.permitted[0].amount;
-
-        if (tokensLen > 1) {
-            details[1].to = address(this);
-            details[1].requestedAmount = _permit.permitted[1].amount;
-        }
-
-        if (msg.value > _proxyFee) {
-          WETH.deposit{ value: msg.value - _proxyFee }();
-        }
-
-        permit2.permitTransferFrom(_permit, details, msg.sender, _signature);
-
+    function mint(IUniswap.MintParams calldata _params, uint256 _proxyFee)
+        external
+        payable
+        returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
+    {
         INonfungiblePositionManager.MintParams memory mintParams = INonfungiblePositionManager.MintParams({
             fee: _params.fee,
             token0: _params.token0,
@@ -493,63 +365,21 @@ contract Uniswap is IUniswap, Proxy {
             deadline: block.timestamp
         });
 
-        console.log("WETH BALANCE BEFORE: %s", WETH.balanceOf(address(this)));
+        (tokenId, liquidity, amount0, amount1) = nfpm.mint{value: msg.value - _proxyFee}(mintParams);
 
-        (tokenId, liquidity, amount0, amount1) = nfpm.mint(mintParams);
-
-        console.log("WETH BALANCE AFTER %s", WETH.balanceOf(address(this)));
-
-        // if (amount0 < _params.amount0Desired) {
-        //     uint256 refundAmount = _params.amount0Desired - amount0;
-        //
-        //     console.log("%s", refundAmount);
-        //     console.log("%s", _permit.permitted[0].token);
-        //     console.log("%s", _params.token0);
-        //     console.log("%s", address(this).balance);
-        //
-        //     if (_permit.permitted[0].token != _params.token0) {
-        //       _unwrapWETH9(msg.sender);
-        //     } else {
-        //       console.log("USDC SEND");
-        //         _send(_permit.permitted[0].token, msg.sender, refundAmount);
-        //     }
-        // }
-        
-        // if (amount1 < amount1Desired) {
-        //     uint256 refundAmount = _params.amount1Desired - amount1;
-        //
-        //     if (_permit.permitted[1].token != _params.token1) {
-        //         _sendETH(msg.sender, refundAmount);
-        //     } else {
-        //         _send(_permit.permitted[1].token, msg.sender, refundAmount);
-        //     }
-        // }
+        nfpm.refundETH();
+        nfpm.sweepToken(_params.token0, 0, msg.sender);
+        nfpm.sweepToken(_params.token1, 0, msg.sender);
 
         emit Mint(tokenId);
     }
 
     /// @inheritdoc IUniswap
-    function increaseLiquidity(
-        IUniswap.IncreaseLiquidityParams calldata _params,
-        uint256 _proxyFee,
-        ISignatureTransfer.PermitBatchTransferFrom calldata _permit,
-        bytes calldata _signature
-    ) external payable returns (uint128 liquidity, uint256 amount0, uint256 amount1) {
-        uint256 tokensLen = _permit.permitted.length;
-
-        ISignatureTransfer.SignatureTransferDetails[] memory details =
-            new ISignatureTransfer.SignatureTransferDetails[](tokensLen);
-
-        details[0].to = address(this);
-        details[0].requestedAmount = _permit.permitted[0].amount;
-
-        if (tokensLen > 1) {
-            details[1].to = address(this);
-            details[1].requestedAmount = _permit.permitted[1].amount;
-        }
-
-        permit2.permitTransferFrom(_permit, details, msg.sender, _signature);
-
+    function increaseLiquidity(IUniswap.IncreaseLiquidityParams calldata _params, uint256 _proxyFee)
+        external
+        payable
+        returns (uint128 liquidity, uint256 amount0, uint256 amount1)
+    {
         INonfungiblePositionManager.IncreaseLiquidityParams memory increaseParams = INonfungiblePositionManager
             .IncreaseLiquidityParams({
             tokenId: _params.tokenId,
@@ -562,20 +392,8 @@ contract Uniswap is IUniswap, Proxy {
 
         (liquidity, amount0, amount1) = nfpm.increaseLiquidity{value: msg.value - _proxyFee}(increaseParams);
 
-        if (amount0 < _params.amountAdd0) {
-            if (_params.token0 == address(WETH) && msg.value > _proxyFee) {
-                _sendETH(msg.sender, _params.amountAdd0 - amount0);
-            } else {
-                _sweepToken(_params.token0);
-            }
-        }
-
-        if (amount1 < _params.amountAdd1) {
-            if (_params.token1 == address(WETH) && msg.value > _proxyFee) {
-                _sendETH(msg.sender, _params.amountAdd1 - amount1);
-            } else {
-                _sweepToken(_params.token1);
-            }
-        }
+        nfpm.refundETH();
+        nfpm.sweepToken(_params.token0, 0, msg.sender);
+        nfpm.sweepToken(_params.token1, 0, msg.sender);
     }
 }

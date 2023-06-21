@@ -47,7 +47,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.18;
 
-import "./helpers/Errors.sol";
+import "./helpers/ErrorCodes.sol";
 import "./interfaces/IWETH9.sol";
 import "./interfaces/Permit2.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -130,7 +130,7 @@ contract Proxy is Ownable {
     function _sendETH(address _recipient, uint256 _amount) internal {
         (bool success,) = payable(_recipient).call{value: _amount}("");
 
-        _require(success, Errors.FAILED_TO_SEND_ETHER);
+        _require(success, ErrorCodes.FAILED_TO_SEND_ETHER);
     }
 
     /// @notice Unwraps WETH9 to Ether and sends the amount to the recipient
@@ -165,7 +165,7 @@ contract Proxy is Ownable {
         ISignatureTransfer.PermitTransferFrom calldata _permit,
         bytes calldata _signature
     ) external payable {
-        _require(_permit.permitted.token == address(WETH), Errors.TOKENS_MISMATCHED);
+        _require(_permit.permitted.token == address(WETH), ErrorCodes.TOKENS_MISMATCHED);
 
         permit2.permitTransferFrom(
             _permit,
@@ -178,45 +178,4 @@ contract Proxy is Ownable {
 
         _sendETH(_recipient, _permit.permitted.amount);
     }
-
-    // /// @notice Multiple calls on proxy functions
-    // /// @param _data The destination address
-    // /// @return results Results of each call in a bytes array
-    // function multicall(bytes[] calldata _data) public payable returns (bytes[] memory results) {
-    //     results = new bytes[](_data.length);
-    //
-    //     for (uint256 i = 0; i < _data.length; i++) {
-    //         (bool success, bytes memory result) = address(this).delegatecall(_data[i]);
-    //
-    //         if (!success) {
-    //             // Next 5 lines from https://ethereum.stackexchange.com/a/83577
-    //             if (result.length < 68) revert();
-    //             assembly {
-    //                 result := add(result, 0x04)
-    //             }
-    //             revert(abi.decode(result, (string)));
-    //         }
-    //
-    //         results[i] = result;
-    //     }
-    // }
-
-    /// @notice Multiple calls on proxy functions
-    /// @param _data The destination address
-    function multicall(bytes[] calldata _data) external payable {
-        for (uint256 i = 0; i < _data.length; i++) {
-            (bool success, bytes memory result) = address(this).delegatecall(_data[i]);
-
-            if (!success) {
-                // Next 5 lines from https://ethereum.stackexchange.com/a/83577
-                if (result.length < 68) revert();
-                assembly {
-                    result := add(result, 0x04)
-                }
-                revert(abi.decode(result, (string)));
-            }
-        }
-    }
-
-    receive() external payable {}
 }
