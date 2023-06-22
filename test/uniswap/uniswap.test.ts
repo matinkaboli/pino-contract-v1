@@ -4,6 +4,7 @@ import { PERMIT2_ADDRESS } from '@uniswap/permit2-sdk';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
 import { TradeType } from '@uniswap/sdk-core';
+import { BigNumber } from 'ethers';
 import {
   USDC,
   USDT,
@@ -24,6 +25,8 @@ import {
 } from '../utils/uniswap-order-route';
 import { LUSD_TOKEN, WETH_TOKEN } from '../utils/uniswap-tokens';
 
+import UniswapABI from '../../artifacts/contracts/Uniswap/Uniswap.sol/Uniswap.json';
+
 const { constants } = ethers;
 const NFPM = '0xC36442b4a4522E871399CD717aBDD847Ab11FE88';
 const SWAP_ROUTER = '0xE592427A0AEce92De3Edee1F18E0157C05861564';
@@ -37,17 +40,21 @@ describe('Uniswap', () => {
   let account: SignerWithAddress;
 
   const deploy = async () => {
-    const Uniswap = await ethers.getContractFactory('Uniswap');
+    const IUNISWAP = await ethers.getContractFactory('Uniswap');
+    const encode = IUNISWAP.interface.encodeFunctionData;
 
-    const contract = await Uniswap.deploy(
+    const contract = await IUNISWAP.deploy(
       PERMIT2_ADDRESS,
       WETH,
       SWAP_ROUTER,
       NFPM,
-      [USDC, USDT, DAI],
     );
 
+    await contract.approveToken(DAI, [NFPM, SWAP_ROUTER]);
     await contract.approveToken(WETH, [NFPM, SWAP_ROUTER]);
+    await contract.approveToken(USDC, [NFPM, SWAP_ROUTER]);
+    await contract.approveToken(USDT, [NFPM, SWAP_ROUTER]);
+    await contract.approveToken(LUSD, [NFPM, SWAP_ROUTER]);
 
     return {
       contract,
@@ -107,17 +114,33 @@ describe('Uniswap', () => {
 
       const swapParams = {
         path,
-        receiveETH: false,
+        amountIn: amount,
         amountOutMinimum: 0,
       };
 
       const wethBalanceBefore = await weth.balanceOf(account.address);
 
-      await contract.swapExactInputMultihop(
-        swapParams,
-        permit,
-        signature,
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const swapTx =
+        await contract.populateTransaction.swapExactInputMultihop(
+          swapParams,
+        );
+
+      const sweepTx = await contract.populateTransaction.sweepToken(
+        WETH,
+        account.address,
       );
+
+      await contract.multicall([
+        permitTx.data,
+        swapTx.data,
+        sweepTx.data,
+      ]);
 
       const wethBalanceAfter = await weth.balanceOf(account.address);
 
@@ -137,10 +160,6 @@ describe('Uniswap', () => {
         contract.address,
       );
 
-      const params = {
-        receiveETH: false,
-      };
-
       const pathBytes = await uniswapOrderRoute(
         account.address,
         fromReadableAmount(3000, 18),
@@ -155,12 +174,28 @@ describe('Uniswap', () => {
 
       const lusdBalanceBefore = await lusd.balanceOf(account.address);
 
-      await contract.swapExactInputMultihopMultiPool(
-        params,
-        pathBytes,
-        permit,
-        signature,
-      );
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const swapTx =
+        await contract.populateTransaction.swapExactInputMultihopMultiPool(
+          pathBytes,
+        );
+
+      const sweepToken =
+        await contract.populateTransaction.sweepToken(
+          LUSD,
+          account.address,
+        );
+
+      await contract.multicall([
+        permitTx.data,
+        swapTx.data,
+        sweepToken.data,
+      ]);
 
       const lusdBalanceAfter = await lusd.balanceOf(account.address);
 
@@ -189,16 +224,32 @@ describe('Uniswap', () => {
       const swapParams = {
         path,
         amountOut,
-        receiveETH: false,
+        amountInMaximum: amount,
       };
 
       const wethBalanceBefore = await weth.balanceOf(account.address);
 
-      await contract.swapExactOutputMultihop(
-        swapParams,
-        permit,
-        signature,
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const swapTx =
+        await contract.populateTransaction.swapExactOutputMultihop(
+          swapParams,
+        );
+
+      const sweepTx = await contract.populateTransaction.sweepToken(
+        WETH,
+        account.address,
       );
+
+      await contract.multicall([
+        permitTx.data,
+        swapTx.data,
+        sweepTx.data,
+      ]);
 
       const wethBalanceAfter = await weth.balanceOf(account.address);
 
@@ -227,16 +278,31 @@ describe('Uniswap', () => {
       const swapParams = {
         path,
         amountOut,
-        receiveETH: true,
+        amountInMaximum: amount,
       };
 
       const ethBalanceBefore = await account.getBalance();
 
-      await contract.swapExactOutputMultihop(
-        swapParams,
-        permit,
-        signature,
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const swapTx =
+        await contract.populateTransaction.swapExactOutputMultihop(
+          swapParams,
+        );
+
+      const unwrapTx = await contract.populateTransaction.unwrapWETH9(
+        account.address,
       );
+
+      await contract.multicall([
+        permitTx.data,
+        swapTx.data,
+        unwrapTx.data,
+      ]);
 
       const ethBalanceAfter = await account.getBalance();
 
@@ -274,6 +340,7 @@ describe('Uniswap', () => {
       const { contract } = await loadFixture(deploy);
 
       const amount = 1n * 10n ** 18n;
+      const proxyFee = 0n;
 
       const path = ethers.utils.solidityPack(
         ['address', 'uint24', 'address', 'uint24', 'address'],
@@ -288,7 +355,18 @@ describe('Uniswap', () => {
 
       const daiBalanceBefore = await dai.balanceOf(account.address);
 
-      await contract.swapExactInputMultihopETH(swapParams, 0, {
+      const swapTx =
+        await contract.populateTransaction.swapExactInputMultihopETH(
+          swapParams,
+          proxyFee,
+        );
+
+      const sweepTx = await contract.populateTransaction.sweepToken(
+        DAI,
+        account.address,
+      );
+
+      await contract.multicall([swapTx.data, sweepTx.data], {
         value: amount,
       });
 
@@ -317,19 +395,36 @@ describe('Uniswap', () => {
       const usdcBefore = await usdc.balanceOf(account.address);
       const daiBefore = await dai.balanceOf(account.address);
 
-      const swapExactInputSingleParams = {
+      const swapParams = {
         fee,
+        tokenIn: USDC,
         tokenOut: DAI,
+        amountIn: amount,
         amountOutMinimum,
         sqrtPriceLimitX96: 0,
-        receiveETH: false,
       };
 
-      await contract.swapExactInputSingle(
-        swapExactInputSingleParams,
-        permit,
-        signature,
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const swapTx =
+        await contract.populateTransaction.swapExactInputSingle(
+          swapParams,
+        );
+
+      const sweepTx = await contract.populateTransaction.sweepToken(
+        DAI,
+        account.address,
       );
+
+      await contract.multicall([
+        permitTx.data,
+        swapTx.data,
+        sweepTx.data,
+      ]);
 
       expect(await usdc.balanceOf(account.address)).to.equal(
         usdcBefore.sub(amount),
@@ -358,19 +453,36 @@ describe('Uniswap', () => {
       const usdcBefore = await usdc.balanceOf(account.address);
       const usdtBefore = await usdt.balanceOf(account.address);
 
-      const swapExactInputSingleParams = {
+      const swapParams = {
         fee,
+        tokenIn: USDC,
         tokenOut: USDT,
+        amountIn: amount,
         amountOutMinimum,
         sqrtPriceLimitX96: 0,
-        receiveETH: false,
       };
 
-      await contract.swapExactInputSingle(
-        swapExactInputSingleParams,
-        permit,
-        signature,
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const swapTx =
+        await contract.populateTransaction.swapExactInputSingle(
+          swapParams,
+        );
+
+      const sweepTx = await contract.populateTransaction.sweepToken(
+        USDT,
+        account.address,
       );
+
+      await contract.multicall([
+        permitTx.data,
+        swapTx.data,
+        sweepTx.data,
+      ]);
 
       expect(await usdc.balanceOf(account.address)).to.equal(
         usdcBefore.sub(amount),
@@ -400,17 +512,34 @@ describe('Uniswap', () => {
 
       const swapParams = {
         fee,
+        tokenIn: DAI,
         tokenOut: USDC,
+        amountInMaximum: amount,
         amountOut,
-        receiveETH: false,
         sqrtPriceLimitX96: 0,
       };
 
-      await contract.swapExactOutputSingle(
-        swapParams,
-        permit,
-        signature,
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const swapTx =
+        await contract.populateTransaction.swapExactOutputSingle(
+          swapParams,
+        );
+
+      const sweepTx = await contract.populateTransaction.sweepToken(
+        USDC,
+        account.address,
       );
+
+      await contract.multicall([
+        permitTx.data,
+        swapTx.data,
+        sweepTx.data,
+      ]);
 
       expect(await usdc.balanceOf(account.address)).to.equal(
         usdcBefore.add(amountOut),
@@ -436,17 +565,34 @@ describe('Uniswap', () => {
 
       const swapParams = {
         fee,
+        tokenIn: USDT,
         tokenOut: USDC,
         amountOut,
-        receiveETH: false,
+        amountInMaximum: amount,
         sqrtPriceLimitX96: 0,
       };
 
-      await contract.swapExactOutputSingle(
-        swapParams,
-        permit,
-        signature,
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const swapTx =
+        await contract.populateTransaction.swapExactOutputSingle(
+          swapParams,
+        );
+
+      const sweepTx = await contract.populateTransaction.sweepToken(
+        USDC,
+        account.address,
       );
+
+      await contract.multicall([
+        permitTx.data,
+        swapTx.data,
+        sweepTx.data,
+      ]);
 
       expect(await usdc.balanceOf(account.address)).to.gte(
         usdcBefore.add(amountOut),
@@ -474,17 +620,33 @@ describe('Uniswap', () => {
 
       const swapParams = {
         fee,
-        amountOut,
+        tokenIn: USDT,
         tokenOut: WETH,
-        receiveETH: true,
+        amountOut,
+        amountInMaximum: amount,
         sqrtPriceLimitX96: 0,
       };
 
-      await contract.swapExactOutputSingle(
-        swapParams,
-        permit,
-        signature,
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const swapTx =
+        await contract.populateTransaction.swapExactOutputSingle(
+          swapParams,
+        );
+
+      const unwrapTx = await contract.populateTransaction.unwrapWETH9(
+        account.address,
       );
+
+      await contract.multicall([
+        permitTx.data,
+        swapTx.data,
+        unwrapTx.data,
+      ]);
 
       expect(await account.getBalance()).to.gte(ethBalanceBefore);
     });
@@ -508,17 +670,33 @@ describe('Uniswap', () => {
 
       const swapParams = {
         fee,
+        tokenIn: USDC,
         tokenOut: WETH,
+        amountIn: amount,
         amountOutMinimum,
         sqrtPriceLimitX96: 0,
-        receiveETH: true,
       };
 
-      await contract.swapExactInputSingle(
-        swapParams,
-        permit,
-        signature,
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const swapTx =
+        await contract.populateTransaction.swapExactInputSingle(
+          swapParams,
+        );
+
+      const unwrapTx = await contract.populateTransaction.unwrapWETH9(
+        account.address,
       );
+
+      await contract.multicall([
+        permitTx.data,
+        swapTx.data,
+        unwrapTx.data,
+      ]);
 
       expect(await account.getBalance()).to.gte(ethBalance);
     });
@@ -542,17 +720,34 @@ describe('Uniswap', () => {
 
       const swapParams = {
         fee,
+        tokenIn: USDC,
         tokenOut: WETH,
+        amountIn: amount,
         amountOutMinimum,
         sqrtPriceLimitX96: 0,
-        receiveETH: false,
       };
 
-      await contract.swapExactInputSingle(
-        swapParams,
-        permit,
-        signature,
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const swapTx =
+        await contract.populateTransaction.swapExactInputSingle(
+          swapParams,
+        );
+
+      const sweepTx = await contract.populateTransaction.sweepToken(
+        WETH,
+        account.address,
       );
+
+      await contract.multicall([
+        permitTx.data,
+        swapTx.data,
+        sweepTx.data,
+      ]);
 
       expect(await weth.balanceOf(account.address)).to.gte(
         wethBalance.add(amountOutMinimum),
@@ -578,17 +773,33 @@ describe('Uniswap', () => {
 
       const swapParams = {
         fee,
+        tokenIn: USDC,
         tokenOut: WETH,
+        amountIn: amount,
         amountOutMinimum,
         sqrtPriceLimitX96: 0,
-        receiveETH: false,
       };
 
-      await contract.swapExactInputSingle(
-        swapParams,
-        permit,
-        signature,
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const swapTx =
+        await contract.populateTransaction.swapExactInputSingle(
+          swapParams,
+        );
+
+      const unwrapTx = await contract.populateTransaction.unwrapWETH9(
+        account.address,
       );
+
+      await contract.multicall([
+        permitTx.data,
+        swapTx.data,
+        unwrapTx.data,
+      ]);
 
       expect(await weth.balanceOf(account.address)).to.gte(
         wethBalance.add(amountOutMinimum),
@@ -659,9 +870,33 @@ describe('Uniswap', () => {
         token1: WETH,
       };
 
-      await contract.mint(mintParams, 0, permit, signature, {
-        value: amount1,
-      });
+      const permitTx =
+        await contract.populateTransaction.permitBatchTransferFrom(
+          permit,
+          signature,
+        );
+
+      const mintTx = await contract.populateTransaction.mint(
+        mintParams,
+        0,
+      );
+
+      const sweepTx = await contract.populateTransaction.sweepToken(
+        USDC,
+        account.address,
+      );
+
+      const unwrapWETH9 =
+        await contract.populateTransaction.unwrapWETH9(
+          account.address,
+        );
+
+      await contract.multicall(
+        [permitTx.data, mintTx.data, sweepTx.data, unwrapWETH9.data],
+        {
+          value: amount1,
+        },
+      );
 
       const ethBalanceAfter = await account.getBalance();
       const wethBalanceAfter = await weth.balanceOf(account.address);
