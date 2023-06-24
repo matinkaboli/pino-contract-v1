@@ -47,7 +47,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.18;
 
-import "./helpers/Errors.sol";
+import "./helpers/ErrorCodes.sol";
 import "./interfaces/IWETH9.sol";
 import "./interfaces/Permit2.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -70,16 +70,17 @@ contract Proxy is Ownable {
     }
 
     /// @notice Withdraws fees and transfers them to owner
-    function withdrawAdmin() public onlyOwner {
+    /// @param _recipient Address of the destination receiving the fees
+    function withdrawAdmin(address _recipient) public onlyOwner {
         require(address(this).balance > 0);
 
-        _sendETH(owner(), address(this).balance);
+        _sendETH(_recipient, address(this).balance);
     }
 
     /// @notice Approves an ERC20 token to lendingPool and wethGateway
     /// @param _token ERC20 token address
     /// @param _spenders ERC20 token address
-    function approveToken(address _token, address[] calldata _spenders) external onlyOwner {
+    function approveToken(address _token, address[] calldata _spenders) external {
         for (uint8 i = 0; i < _spenders.length;) {
             _approve(_token, _spenders[i]);
 
@@ -129,7 +130,7 @@ contract Proxy is Ownable {
     function _sendETH(address _recipient, uint256 _amount) internal {
         (bool success,) = payable(_recipient).call{value: _amount}("");
 
-        _require(success, Errors.FAILED_TO_SEND_ETHER);
+        _require(success, ErrorCodes.FAILED_TO_SEND_ETHER);
     }
 
     /// @notice Unwraps WETH9 to Ether and sends the amount to the recipient
@@ -144,5 +145,37 @@ contract Proxy is Ownable {
         }
     }
 
-    receive() external payable {}
+    /// @notice Wraps ETH to WETH and sends to recipient
+    /// @param _recipient The destination address
+    /// @param _proxyFee Fee of the proxy contract
+    function wrapWETH9(address _recipient, uint96 _proxyFee) external payable {
+        uint256 value = msg.value - _proxyFee;
+
+        WETH.deposit{value: value}();
+
+        _send(address(WETH), _recipient, value);
+    }
+
+    /// @notice Receives WETH and unwraps it to ETH and sends to recipient
+    /// @param _recipient The destination address
+    /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
+    /// @param _signature Signature, used by Permit2
+    function unwrapWETH9(
+        address _recipient,
+        ISignatureTransfer.PermitTransferFrom calldata _permit,
+        bytes calldata _signature
+    ) external payable {
+        _require(_permit.permitted.token == address(WETH), ErrorCodes.TOKENS_MISMATCHED);
+
+        permit2.permitTransferFrom(
+            _permit,
+            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
+            msg.sender,
+            _signature
+        );
+
+        WETH.withdraw(_permit.permitted.amount);
+
+        _sendETH(_recipient, _permit.permitted.amount);
+    }
 }
