@@ -99,6 +99,7 @@ contract Uniswap is IUniswap, Pino {
     function swapExactInputSingleETH(IUniswap.SwapExactInputSingleEthParams calldata _params, uint256 _proxyFee)
         external
         payable
+        ethUnlocked
         returns (uint256 amountOut)
     {
         uint256 value = msg.value - _proxyFee;
@@ -141,6 +142,7 @@ contract Uniswap is IUniswap, Pino {
     function swapExactOutputSingleETH(IUniswap.SwapExactOutputSingleETHParams calldata _params, uint256 _proxyFee)
         external
         payable
+        ethUnlocked
         returns (uint256 amountIn)
     {
         uint256 value = msg.value - _proxyFee;
@@ -180,6 +182,7 @@ contract Uniswap is IUniswap, Pino {
     function swapExactInputMultihopETH(SwapMultihopPath calldata _params, uint256 _proxyFee)
         external
         payable
+        ethUnlocked
         returns (uint256 amountOut)
     {
         uint256 value = msg.value - _proxyFee;
@@ -216,6 +219,7 @@ contract Uniswap is IUniswap, Pino {
     function swapExactOutputMultihopETH(SwapExactOutputMultihopETHParams calldata _params, uint256 _proxyFee)
         external
         payable
+        ethUnlocked
         returns (uint256 amountIn)
     {
         uint256 value = msg.value - _proxyFee;
@@ -262,6 +266,7 @@ contract Uniswap is IUniswap, Pino {
     function swapExactInputMultihopMultiPoolETH(SwapMultihopPath[] calldata _paths, uint256 _proxyFee)
         external
         payable
+        ethUnlocked
         returns (uint256 amountOut)
     {
         amountOut = 0;
@@ -318,6 +323,7 @@ contract Uniswap is IUniswap, Pino {
     function swapExactOutputMultihopMultiPoolETH(SwapMultihopPath[] calldata _paths, uint256 _proxyFee)
         external
         payable
+        ethUnlocked
         returns (uint256 amountIn)
     {
         amountIn = 0;

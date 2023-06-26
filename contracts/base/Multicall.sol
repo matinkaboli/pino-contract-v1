@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.18;
 
-contract Multicall {
+import "./EthLocker.sol";
+
+contract Multicall is EthLocker {
     /// @notice Multiple calls on proxy functions
     /// @param _data The destination address
     function multicall(bytes[] calldata _data) public payable {
@@ -22,5 +24,7 @@ contract Multicall {
                 ++i;
             }
         }
+
+        unlockEth();
     }
 }

@@ -3,12 +3,13 @@ pragma solidity 0.8.18;
 
 import "./Permit.sol";
 import "./Errors.sol";
+import "./EthLocker.sol";
 import "../helpers/ErrorCodes.sol";
 import "../interfaces/Permit2.sol";
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-contract Payments is Errors, Permit {
+contract Payments is Errors, Permit, EthLocker {
     using SafeERC20 for IERC20;
 
     /// @notice Proxy contract constructor, sets permit2 and weth addresses
@@ -51,7 +52,6 @@ contract Payments is Errors, Permit {
         _require(success, ErrorCodes.FAILED_TO_SEND_ETHER);
     }
 
-
     /// @notice Approves an ERC20 token to lendingPool and wethGateway
     /// @param _token ERC20 token address
     /// @param _spenders ERC20 token address
@@ -66,14 +66,13 @@ contract Payments is Errors, Permit {
     }
 
     /// @notice Wraps ETH to WETH and sends to recipient
-    /// @param _recipient The destination address
     /// @param _proxyFee Fee of the proxy contract
-    function wrapWETH9(address _recipient, uint96 _proxyFee) external payable {
+    function wrapETH(uint96 _proxyFee) external payable ethUnlocked {
+        // lockEth();
+
         uint256 value = msg.value - _proxyFee;
 
         WETH.deposit{value: value}();
-
-        _send(address(WETH), _recipient, value);
     }
 
     /// @notice Unwraps WETH9 to Ether and sends the amount to the recipient
@@ -99,22 +98,4 @@ contract Payments is Errors, Permit {
             _sendETH(_recipient, balanceWETH);
         }
     }
-
-    // /// @notice Receives WETH and unwraps it to ETH and sends to recipient
-    // /// @param _recipient The destination address
-    // /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
-    // /// @param _signature Signature, used by Permit2
-    // function unwrapWETH9(
-    //     address _recipient,
-    //     ISignatureTransfer.PermitTransferFrom calldata _permit,
-    //     bytes calldata _signature
-    // ) external payable {
-    //     _require(_permit.permitted.token == address(WETH), ErrorCodes.TOKENS_MISMATCHED);
-    //
-    //     permitTransferFrom(_permit, _signature);
-    //     WETH.withdraw(_permit.permitted.amount);
-    //
-    //     _sendETH(_recipient, _permit.permitted.amount);
-    // }
 }
-

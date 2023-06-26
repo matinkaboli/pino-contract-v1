@@ -1626,6 +1626,86 @@ describe('Uniswap', () => {
     });
   });
 
+  describe('Find bugs', () => {
+    it('Should revert if wrapETH is called more than once', async () => {
+      const { contract } = await loadFixture(deploy);
+
+      const amount = ethers.utils.parseEther('1');
+
+      // First, we send 2 eth to the contract (consider this amount a proxy fee that's accumulated)
+      await account.sendTransaction({
+        to: contract.address,
+        value: amount.mul(2),
+      });
+
+      // Make sure the contract has at least 2 ETH
+      expect(
+        await ethers.provider.getBalance(contract.address),
+      ).to.gte(amount.mul(2));
+
+      const wethBalanceBefore = await weth.balanceOf(account.address);
+
+      // Now we try to send 1 Eth but call wrapETH 2 times, we send 1 ETH but expect to receive
+      // 2 WETH in multicall
+      const wrapTx = await contract.populateTransaction.wrapETH(0);
+      const sweepTx = await contract.populateTransaction.sweepToken(
+        WETH,
+        account.address,
+      );
+
+      await expect(
+        contract.multicall([wrapTx.data, wrapTx.data, sweepTx.data], {
+          value: amount,
+        }),
+      ).to.be.reverted;
+
+      const wethBalanceAfter = await weth.balanceOf(account.address);
+
+      expect(wethBalanceAfter).to.equal(wethBalanceBefore);
+    });
+
+    it('Should revert if wrapETH and swapExactInputSingleETH are called together', async () => {
+      const { contract } = await loadFixture(deploy);
+
+      const amount = ethers.utils.parseEther('1');
+
+      // First, we send 2 eth to the contract (consider this amount a proxy fee that's accumulated)
+      await account.sendTransaction({
+        to: contract.address,
+        value: amount.mul(2),
+      });
+
+      // Make sure the contract has at least 2 ETH
+      expect(
+        await ethers.provider.getBalance(contract.address),
+      ).to.gte(amount.mul(2));
+
+      // Now we try to send 1 Eth but call wrapETH 2 times, we send 1 ETH but expect to receive
+      // 2 WETH in multicall
+      const wrapTx = await contract.populateTransaction.wrapETH(0);
+      const swapTx =
+        await contract.populateTransaction.swapExactInputSingleETH(
+          {
+            fee: 500,
+            sqrtPriceLimitX96: 0,
+            tokenOut: USDC,
+            amountOutMinimum: 0,
+          },
+          0,
+        );
+      const sweepTx = await contract.populateTransaction.sweepToken(
+        WETH,
+        account.address,
+      );
+
+      await expect(
+        contract.multicall([wrapTx.data, swapTx.data, sweepTx.data], {
+          value: amount,
+        }),
+      ).to.be.reverted;
+    });
+  });
+
   describe('Admin', () => {
     it('Should withdraw money', async () => {
       const { contract } = await loadFixture(deploy);
