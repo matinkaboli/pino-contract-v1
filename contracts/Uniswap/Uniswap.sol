@@ -76,90 +76,6 @@ contract Uniswap is IUniswap, Pino {
     }
 
     /// @inheritdoc IUniswap
-    function swapExactInputSingle(IUniswap.SwapExactInputSingleParams calldata _params)
-        external
-        payable
-        returns (uint256 amountOut)
-    {
-        amountOut = swapRouter.exactInputSingle(
-            ISwapRouter.ExactInputSingleParams({
-                fee: _params.fee,
-                tokenIn: _params.tokenIn,
-                tokenOut: _params.tokenOut,
-                deadline: block.timestamp,
-                amountIn: _params.amountIn,
-                amountOutMinimum: _params.amountOutMinimum,
-                sqrtPriceLimitX96: _params.sqrtPriceLimitX96,
-                recipient: address(this)
-            })
-        );
-    }
-
-    /// @inheritdoc IUniswap
-    function swapExactInputSingleETH(IUniswap.SwapExactInputSingleEthParams calldata _params, uint256 _proxyFee)
-        external
-        payable
-        returns (uint256 amountOut)
-    {
-        uint256 value = msg.value - _proxyFee;
-
-        amountOut = swapRouter.exactInputSingle{value: value}(
-            ISwapRouter.ExactInputSingleParams({
-                tokenIn: address(WETH),
-                tokenOut: _params.tokenOut,
-                fee: _params.fee,
-                recipient: msg.sender,
-                deadline: block.timestamp,
-                amountIn: value,
-                amountOutMinimum: _params.amountOutMinimum,
-                sqrtPriceLimitX96: _params.sqrtPriceLimitX96
-            })
-        );
-    }
-
-    /// @inheritdoc IUniswap
-    function swapExactOutputSingle(IUniswap.SwapExactOutputSingleParams calldata _params)
-        external
-        payable
-        returns (uint256 amountIn)
-    {
-        amountIn = swapRouter.exactOutputSingle(
-            ISwapRouter.ExactOutputSingleParams({
-                tokenIn: _params.tokenIn,
-                tokenOut: _params.tokenOut,
-                fee: _params.fee,
-                recipient: address(this),
-                deadline: block.timestamp,
-                amountOut: _params.amountOut,
-                amountInMaximum: _params.amountInMaximum,
-                sqrtPriceLimitX96: _params.sqrtPriceLimitX96
-            })
-        );
-    }
-
-    /// @inheritdoc IUniswap
-    function swapExactOutputSingleETH(IUniswap.SwapExactOutputSingleETHParams calldata _params, uint256 _proxyFee)
-        external
-        payable
-        returns (uint256 amountIn)
-    {
-        uint256 value = msg.value - _proxyFee;
-
-        amountIn = swapRouter.exactOutputSingle{value: value}(
-            ISwapRouter.ExactOutputSingleParams({
-                tokenIn: address(WETH),
-                tokenOut: _params.tokenOut,
-                fee: _params.fee,
-                recipient: msg.sender,
-                deadline: block.timestamp,
-                amountOut: _params.amountOut,
-                amountInMaximum: value,
-                sqrtPriceLimitX96: _params.sqrtPriceLimitX96
-            })
-        );
-    }
-
-    /// @inheritdoc IUniswap
     function swapExactInputMultihop(SwapExactInputMultihopParams calldata _params)
         external
         payable
@@ -177,25 +93,6 @@ contract Uniswap is IUniswap, Pino {
     }
 
     /// @inheritdoc IUniswap
-    function swapExactInputMultihopETH(SwapMultihopPath calldata _params, uint256 _proxyFee)
-        external
-        payable
-        returns (uint256 amountOut)
-    {
-        uint256 value = msg.value - _proxyFee;
-
-        ISwapRouter.ExactInputParams memory swapParams = ISwapRouter.ExactInputParams({
-            path: _params.path,
-            recipient: msg.sender,
-            deadline: block.timestamp,
-            amountIn: value,
-            amountOutMinimum: _params.amountOutMinimum
-        });
-
-        amountOut = swapRouter.exactInput{value: value}(swapParams);
-    }
-
-    /// @inheritdoc IUniswap
     function swapExactOutputMultihop(SwapExactOutputMultihopParams calldata _params)
         external
         payable
@@ -210,25 +107,6 @@ contract Uniswap is IUniswap, Pino {
         });
 
         amountIn = swapRouter.exactOutput(swapParams);
-    }
-
-    /// @inheritdoc IUniswap
-    function swapExactOutputMultihopETH(SwapExactOutputMultihopETHParams calldata _params, uint256 _proxyFee)
-        external
-        payable
-        returns (uint256 amountIn)
-    {
-        uint256 value = msg.value - _proxyFee;
-
-        ISwapRouter.ExactOutputParams memory swapParams = ISwapRouter.ExactOutputParams({
-            path: _params.path,
-            recipient: msg.sender,
-            deadline: block.timestamp,
-            amountOut: _params.amountOut,
-            amountInMaximum: value
-        });
-
-        amountIn = swapRouter.exactOutput{value: value}(swapParams);
     }
 
     /// @inheritdoc IUniswap
@@ -250,36 +128,6 @@ contract Uniswap is IUniswap, Pino {
 
             uint256 exactAmountOut = swapRouter.exactInput(swapParams);
 
-            amountOut += exactAmountOut;
-
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    /// @inheritdoc IUniswap
-    function swapExactInputMultihopMultiPoolETH(SwapMultihopPath[] calldata _paths, uint256 _proxyFee)
-        external
-        payable
-        returns (uint256 amountOut)
-    {
-        amountOut = 0;
-        uint256 sumAmountsIn = 0;
-
-        for (uint8 i = 0; i < _paths.length;) {
-            ISwapRouter.ExactInputParams memory swapParams = ISwapRouter.ExactInputParams({
-                path: _paths[i].path,
-                deadline: block.timestamp,
-                amountIn: _paths[i].amountIn,
-                recipient: msg.sender,
-                amountOutMinimum: _paths[i].amountOutMinimum
-            });
-
-            sumAmountsIn += _paths[i].amountIn;
-            _require(sumAmountsIn <= msg.value - _proxyFee, ErrorCodes.ETHER_AMOUNT_SURPASSES_MSG_VALUE);
-
-            uint256 exactAmountOut = swapRouter.exactInput{value: _paths[i].amountIn}(swapParams);
             amountOut += exactAmountOut;
 
             unchecked {
@@ -315,38 +163,7 @@ contract Uniswap is IUniswap, Pino {
     }
 
     /// @inheritdoc IUniswap
-    function swapExactOutputMultihopMultiPoolETH(SwapMultihopPath[] calldata _paths, uint256 _proxyFee)
-        external
-        payable
-        returns (uint256 amountIn)
-    {
-        amountIn = 0;
-        uint256 value = msg.value - _proxyFee;
-        uint256 sumAmountsIn = 0;
-
-        for (uint8 i = 0; i < _paths.length;) {
-            ISwapRouter.ExactOutputParams memory swapParams = ISwapRouter.ExactOutputParams({
-                path: _paths[i].path,
-                recipient: msg.sender,
-                deadline: block.timestamp,
-                amountInMaximum: _paths[i].amountIn,
-                amountOut: _paths[i].amountOutMinimum
-            });
-
-            sumAmountsIn += _paths[i].amountIn;
-            _require(sumAmountsIn <= value, ErrorCodes.ETHER_AMOUNT_SURPASSES_MSG_VALUE);
-
-            uint256 amountUsed = swapRouter.exactOutput{value: _paths[i].amountIn}(swapParams);
-            amountIn += amountUsed;
-
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    /// @inheritdoc IUniswap
-    function mint(IUniswap.MintParams calldata _params, uint256 _proxyFee)
+    function mint(IUniswap.MintParams calldata _params)
         external
         payable
         returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
@@ -365,9 +182,8 @@ contract Uniswap is IUniswap, Pino {
             deadline: block.timestamp
         });
 
-        (tokenId, liquidity, amount0, amount1) = nfpm.mint{value: msg.value - _proxyFee}(mintParams);
+        (tokenId, liquidity, amount0, amount1) = nfpm.mint(mintParams);
 
-        nfpm.refundETH();
         nfpm.sweepToken(_params.token0, 0, msg.sender);
         nfpm.sweepToken(_params.token1, 0, msg.sender);
 
@@ -375,7 +191,7 @@ contract Uniswap is IUniswap, Pino {
     }
 
     /// @inheritdoc IUniswap
-    function increaseLiquidity(IUniswap.IncreaseLiquidityParams calldata _params, uint256 _proxyFee)
+    function increaseLiquidity(IUniswap.IncreaseLiquidityParams calldata _params)
         external
         payable
         returns (uint128 liquidity, uint256 amount0, uint256 amount1)
@@ -390,9 +206,8 @@ contract Uniswap is IUniswap, Pino {
             deadline: block.timestamp
         });
 
-        (liquidity, amount0, amount1) = nfpm.increaseLiquidity{value: msg.value - _proxyFee}(increaseParams);
+        (liquidity, amount0, amount1) = nfpm.increaseLiquidity(increaseParams);
 
-        nfpm.refundETH();
         nfpm.sweepToken(_params.token0, 0, msg.sender);
         nfpm.sweepToken(_params.token1, 0, msg.sender);
     }
