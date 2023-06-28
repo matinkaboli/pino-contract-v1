@@ -13,7 +13,7 @@ contract EthLocker is Errors {
     }
 
     function unlockEth() internal {
-        locked = 2;
+        locked = 0;
     }
 
     modifier ethLocked() {

@@ -7,6 +7,8 @@ contract Multicall is EthLocker {
     /// @notice Multiple calls on proxy functions
     /// @param _data The destination address
     function multicall(bytes[] calldata _data) public payable {
+        unlockEth();
+
         for (uint256 i = 0; i < _data.length;) {
             (bool success, bytes memory result) = address(this).delegatecall(_data[i]);
 
