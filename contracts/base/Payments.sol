@@ -68,8 +68,6 @@ contract Payments is Errors, Permit, EthLocker {
     /// @notice Wraps ETH to WETH and sends to recipient
     /// @param _proxyFee Fee of the proxy contract
     function wrapETH(uint96 _proxyFee) external payable ethUnlocked {
-        // lockEth();
-
         uint256 value = msg.value - _proxyFee;
 
         WETH.deposit{value: value}();
