@@ -49,9 +49,9 @@ pragma solidity 0.8.18;
 pragma abicoder v2;
 
 import "../Pino.sol";
-import "./IUniswap.sol";
 import "../interfaces/IWETH9.sol";
-import "../interfaces/INonfungiblePositionManager.sol";
+import "../interfaces/Uniswap/IUniswap.sol";
+import "../interfaces/Uniswap/INonfungiblePositionManager.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
@@ -75,7 +75,12 @@ contract Uniswap is IUniswap, Pino {
         swapRouter = _swapRouter;
     }
 
-    /// @inheritdoc IUniswap
+    /// @notice Swaps a fixed amount of token1 for a maximum possible amount of token2 through an intermediary pool.
+    /// @param _params The params necessary to swap exact input multihop
+    /// path abi.encodePacked of [address, u24, address, u24, address]
+    /// amountIn The exact amount in of token in
+    /// amountOutMinimum Minimum amount of token out
+    /// @return amountOut The exact amount of tokenOut received from the swap.
     function swapExactInputMultihop(SwapExactInputMultihopParams calldata _params)
         external
         payable
@@ -92,7 +97,12 @@ contract Uniswap is IUniswap, Pino {
         amountOut = swapRouter.exactInput(swapParams);
     }
 
-    /// @inheritdoc IUniswap
+    /// @notice Swaps a minimum possible amount of token1 for a fixed amount of token2 through an intermediary pool.
+    /// @param _params The params necessary to swap exact output multihop
+    /// path abi.encodePacked of [address, u24, address, u24, address]
+    /// amountInMaximum The maximum amount of token in
+    /// amountOut The desired amount of token out
+    /// @return amountIn The exact amount of tokenIn spent to receive the exact desired amountOut.
     function swapExactOutputMultihop(SwapExactOutputMultihopParams calldata _params)
         external
         payable
@@ -109,7 +119,12 @@ contract Uniswap is IUniswap, Pino {
         amountIn = swapRouter.exactOutput(swapParams);
     }
 
-    /// @inheritdoc IUniswap
+    /// @notice Swaps a fixed amount of token for a maximum possible amount of token2 through intermediary pools.
+    /// @param _paths Paths of uniswap pools
+    /// path abi.encodePacked of [address, u24, address, u24, address]
+    /// amountIn The exact amount in of token in
+    /// amountOutMinimum Minimum amount of token out
+    /// @return amountOut The exact amount of tokenOut received from the swap.
     function swapExactInputMultihopMultiPool(SwapMultihopPath[] calldata _paths)
         external
         payable
@@ -136,7 +151,12 @@ contract Uniswap is IUniswap, Pino {
         }
     }
 
-    /// @inheritdoc IUniswap
+    /// @notice Swaps a minimum possible amount of token for a fixed amount of token2 through intermediary pools.
+    /// @param _paths Paths of uniswap pools
+    /// path abi.encodePacked of [address, u24, address, u24, address]
+    /// amountInMaximum The maximum amount of token in
+    /// amountOut The desired amount of token out
+    /// @return amountIn The exact amount of tokenIn spent to receive the exact desired amountOut.
     function swapExactOutputMultihopMultiPool(SwapMultihopPath[] calldata _paths)
         external
         payable
@@ -162,7 +182,21 @@ contract Uniswap is IUniswap, Pino {
         }
     }
 
-    /// @inheritdoc IUniswap
+    /// @notice Creates a new position wrapped in a NFT
+    /// @param _params The params necessary to mint a new position
+    /// fee Fee of the uniswap pool. For example, 0.01% = 100
+    /// tickLower The lower tick in the range
+    /// tickUpper The upper tick in the range
+    /// token0 Token0 address
+    /// token1 Token1 address
+    /// amount0Min Minimum amount of the first token to receive
+    /// amount1Min Minimum amount of the second token to receive
+    /// amount0Desired Maximum amount of token0 that will be used in mint
+    /// amount1Desired Maximum amount of token1 that will be used in mint
+    /// @return tokenId The id of the newly minted ERC721
+    /// @return liquidity The amount of liquidity for the position
+    /// @return amount0 The amount of token0
+    /// @return amount1 The amount of token1
     function mint(IUniswap.MintParams calldata _params)
         external
         payable
@@ -190,7 +224,14 @@ contract Uniswap is IUniswap, Pino {
         emit Mint(tokenId);
     }
 
-    /// @inheritdoc IUniswap
+    /// @notice Increases liquidity in the current range
+    /// @param _params The params necessary to increase liquidity in a uniswap position
+    /// @dev Pool must be initialized already to add liquidity
+    /// tokenId The id of the erc721 token
+    /// amountAdd0 The amount to add of token0
+    /// amountAdd1 The amount to add of token1
+    /// amount0Min Minimum amount of the first token to receive
+    /// amount1Min Minimum amount of the second token to receive
     function increaseLiquidity(IUniswap.IncreaseLiquidityParams calldata _params)
         external
         payable
