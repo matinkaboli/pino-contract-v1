@@ -6,4 +6,8 @@ library ErrorCodes {
     uint256 internal constant ETHER_AMOUNT_SURPASSES_MSG_VALUE = 1;
 
     uint256 internal constant TOKENS_MISMATCHED = 2;
+
+    uint256 internal constant FAIELD_TO_SWAP_USING_1INCH = 3;
+    uint256 internal constant FAIELD_TO_SWAP_USING_PARASWAP = 4;
+    uint256 internal constant FAIELD_TO_SWAP_USING_0X = 5;
 }
