@@ -70,7 +70,6 @@ interface IUniswap {
         payable
         returns (uint256 amountOut);
 
-
     struct SwapExactOutputMultihopParams {
         bytes path;
         uint256 amountInMaximum;

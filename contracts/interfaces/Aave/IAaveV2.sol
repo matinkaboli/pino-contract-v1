@@ -29,30 +29,25 @@ interface IAaveV2 {
     /// token Token to withdraw
     /// amount Amount to withdraw
     /// recipient Recipient to receive ERC20 tokens
-    function withdraw(WithdrawParams calldata _params)
-        external
-        payable;
+    function withdraw(WithdrawParams calldata _params) external payable;
 
     struct WithdrawETHParams {
-      uint256 amount;
-      address recipient;
+        uint256 amount;
+        address recipient;
     }
 
     /// @notice Receives underlying A_WETH and sends ETH token to msg.sender
     /// @param _params Withdraw params
     /// amount Amount to withdraw
     /// recipient Recipient to receive ETH
-    function withdrawETH(WithdrawETHParams calldata _params)
-        external
-        payable;
+    function withdrawETH(WithdrawETHParams calldata _params) external payable;
 
-
-        struct RepayParams {
-          address token;
-          uint96 rateMode;
-          uint256 amount;
-          address recipient;
-        }
+    struct RepayParams {
+        address token;
+        uint96 rateMode;
+        uint256 amount;
+        address recipient;
+    }
 
     /// @notice Repays a borrowed token
     /// @param _params Rate mode, 1 for stable and 2 for variable
@@ -60,7 +55,5 @@ interface IAaveV2 {
     /// amount Amount to repay
     /// rateMode Rate mode, 1 for stable and 2 for variable
     /// recipient Recipient to repay for
-    function repay(RepayParams calldata _params)
-        external
-        payable;
+    function repay(RepayParams calldata _params) external payable;
 }

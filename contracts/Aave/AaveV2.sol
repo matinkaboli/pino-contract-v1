@@ -65,10 +65,7 @@ contract AaveV2 is IAaveV2, Pino {
     /// token Token to withdraw
     /// amount Amount to withdraw
     /// recipient Recipient to receive ERC20 tokens
-    function withdraw(IAaveV2.WithdrawParams calldata _params)
-        external
-        payable
-    {
+    function withdraw(IAaveV2.WithdrawParams calldata _params) external payable {
         lendingPool.withdraw(_params.token, _params.amount, _params.recipient);
     }
 
@@ -76,10 +73,7 @@ contract AaveV2 is IAaveV2, Pino {
     /// @param _params Withdraw params
     /// amount Amount to withdraw
     /// recipient Recipient to receive ETH
-    function withdrawETH(IAaveV2.WithdrawETHParams calldata _params)
-        external
-        payable
-    {
+    function withdrawETH(IAaveV2.WithdrawETHParams calldata _params) external payable {
         wethGateway.withdrawETH(address(lendingPool), _params.amount, _params.recipient);
     }
 
@@ -89,10 +83,7 @@ contract AaveV2 is IAaveV2, Pino {
     /// amount Amount to repay
     /// rateMode Rate mode, 1 for stable and 2 for variable
     /// recipient Recipient to repay for
-    function repay(IAaveV2.RepayParams calldata _params)
-        external
-        payable
-    {
+    function repay(IAaveV2.RepayParams calldata _params) external payable {
         lendingPool.repay(_params.token, _params.amount, _params.rateMode, _params.recipient);
     }
 }
