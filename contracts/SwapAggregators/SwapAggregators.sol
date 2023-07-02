@@ -75,7 +75,7 @@ contract SwapAggregators is ISwapAggregators, Pino {
     /// @param _swapTarget Swap target address, used for sending _data
     /// @param _proxyFee Fee of the proxy contract
     /// @param _data 0x protocol generated data from API
-    function swap0xETH(address _swapTarget, uint24 _proxyFee, bytes calldata _data) external payable {
+    function swap0xETH(address _swapTarget, bytes calldata _data, uint24 _proxyFee) external payable {
         (bool success,) = payable(_swapTarget).call{value: msg.value - _proxyFee}(_data);
 
         _require(success, ErrorCodes.FAIELD_TO_SWAP_USING_0X);

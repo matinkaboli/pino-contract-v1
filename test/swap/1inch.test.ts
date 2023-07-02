@@ -36,9 +36,10 @@ describe('1Inch', () => {
       WETH,
       OneInchV5,
       Paraswap,
-      [DAI, WETH],
     );
 
+    await contract.approveToken(DAI, [OneInchV5]);
+    await contract.approveToken(WETH, [OneInchV5]);
     await contract.approveToken(USDC, [OneInchV5]);
     await contract.approveToken(USDT, [OneInchV5]);
 
@@ -87,21 +88,6 @@ describe('1Inch', () => {
         WETH,
         OneInchV5,
         Paraswap,
-        [],
-      );
-    });
-
-    it('Should deploy with multiple tokens', async () => {
-      const SwapAgg = await ethers.getContractFactory(
-        'SwapAggregators',
-      );
-
-      await SwapAgg.deploy(
-        PERMIT2_ADDRESS,
-        WETH,
-        OneInchV5,
-        Paraswap,
-        [DAI, USDC],
       );
     });
   });
@@ -135,7 +121,17 @@ describe('1Inch', () => {
 
       const daiBalanceBefore = await dai.balanceOf(account.address);
 
-      await contract.swap1Inch(query.tx.data, 0, permit, signature);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const swapTx = await contract.populateTransaction.swap1Inch(
+        query.tx.data,
+      );
+
+      await contract.multicall([permitTx.data, swapTx.data]);
 
       expect(await dai.balanceOf(account.address)).to.gt(
         daiBalanceBefore,
@@ -145,7 +141,7 @@ describe('1Inch', () => {
     it('Should swap ETH', async () => {
       const { contract } = await loadFixture(deploy);
 
-      const amount = 1n * 10n ** 17n;
+      const amount = 1n * 10n ** 15n;
 
       const usdcBalanceBefore = await usdc.balanceOf(account.address);
 
@@ -161,9 +157,12 @@ describe('1Inch', () => {
 
       const query = await swapQuery(swapParams);
 
-      await contract.swapETH1Inch(query.tx.data, 0, {
-        value: amount,
-      });
+      const swapTx = await contract.populateTransaction.swap1InchETH(
+        query.tx.data,
+        0,
+      );
+
+      await contract.multicall([swapTx.data]);
 
       expect(await usdc.balanceOf(account.address)).to.gt(
         usdcBalanceBefore,
@@ -210,7 +209,7 @@ describe('1Inch', () => {
 
       const balanceBefore = await account.getBalance();
 
-      await contract.withdrawAdmin();
+      await contract.withdrawAdmin(account.address);
 
       expect(await account.getBalance()).to.gt(balanceBefore);
     });

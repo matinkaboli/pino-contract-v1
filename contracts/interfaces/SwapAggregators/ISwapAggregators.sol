@@ -35,5 +35,5 @@ interface ISwapAggregators {
     /// @param _swapTarget Swap target address, used for sending _data
     /// @param _proxyFee Fee of the proxy contract
     /// @param _data 0x protocol generated data from API
-    function swap0xETH(address _swapTarget, uint24 _proxyFee, bytes calldata _data) external payable;
+    function swap0xETH(address _swapTarget, bytes calldata _data, uint24 _proxyFee) external payable;
 }
