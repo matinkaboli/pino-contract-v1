@@ -39,7 +39,6 @@ describe('0x', () => {
       WETH,
       OneInchV5,
       Paraswap,
-      [DAI, WETH],
     );
 
     return { contract, sign: await signer(account) };
@@ -89,21 +88,6 @@ describe('0x', () => {
         WETH,
         OneInchV5,
         Paraswap,
-        [],
-      );
-    });
-
-    it('Should deploy with multiple tokens', async () => {
-      const SwapAgg = await ethers.getContractFactory(
-        'SwapAggregators',
-      );
-
-      await SwapAgg.deploy(
-        PERMIT2_ADDRESS,
-        WETH,
-        OneInchV5,
-        Paraswap,
-        [DAI, USDC],
       );
     });
   });
@@ -136,14 +120,27 @@ describe('0x', () => {
 
       const daiBalanceBefore = await dai.balanceOf(account.address);
 
-      await contract.swap0x(
-        DAI,
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const swapTx = await contract.populateTransaction.swap0x(
         quote.to,
-        0,
-        permit,
-        signature,
         quote.data,
       );
+
+      const sweepTx = await contract.populateTransaction.sweepToken(
+        DAI,
+        account.address,
+      );
+
+      await contract.multicall([
+        permitTx.data,
+        swapTx.data,
+        sweepTx.data,
+      ]);
 
       expect(await dai.balanceOf(account.address)).to.gt(
         daiBalanceBefore,
@@ -177,14 +174,27 @@ describe('0x', () => {
 
       const daiBalanceBefore = await weth.balanceOf(account.address);
 
-      await contract.swap0x(
-        WETH,
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const swapTx = await contract.populateTransaction.swap0x(
         quote.to,
-        0,
-        permit,
-        signature,
         quote.data,
       );
+
+      const sweepTx = await contract.populateTransaction.sweepToken(
+        WETH,
+        account.address,
+      );
+
+      await contract.multicall([
+        permitTx.data,
+        swapTx.data,
+        sweepTx.data,
+      ]);
 
       expect(await weth.balanceOf(account.address)).to.gt(
         daiBalanceBefore,
@@ -218,14 +228,27 @@ describe('0x', () => {
 
       const daiBalanceBefore = await usdc.balanceOf(account.address);
 
-      await contract.swap0x(
-        USDC,
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const swapTx = await contract.populateTransaction.swap0x(
         quote.to,
-        0,
-        permit,
-        signature,
         quote.data,
       );
+
+      const sweepTx = await contract.populateTransaction.sweepToken(
+        USDC,
+        account.address,
+      );
+
+      await contract.multicall([
+        permitTx.data,
+        swapTx.data,
+        sweepTx.data,
+      ]);
 
       expect(await usdc.balanceOf(account.address)).to.gt(
         daiBalanceBefore,
@@ -249,7 +272,21 @@ describe('0x', () => {
 
       const lusdBalanceBefore = await lusd.balanceOf(account.address);
 
-      await contract.swap0xETH(LUSD, quote.to, 0, quote.data, {
+      const swapTx = await contract.populateTransaction.swap0xETH(
+        quote.to,
+        quote.data,
+        0, // proxy fee
+        {
+          value: amount,
+        },
+      );
+
+      const sweepTx = await contract.populateTransaction.sweepToken(
+        LUSD,
+        account.address,
+      );
+
+      await contract.multicall([swapTx.data, sweepTx.data], {
         value: amount,
       });
 
@@ -298,7 +335,7 @@ describe('0x', () => {
 
       const balanceBefore = await account.getBalance();
 
-      await contract.withdrawAdmin();
+      await contract.withdrawAdmin(account.address);
 
       expect(await account.getBalance()).to.gt(balanceBefore);
     });

@@ -37,9 +37,10 @@ describe('Paraswap', () => {
       WETH,
       OneInchV5,
       Paraswap,
-      [DAI, WETH],
     );
 
+    await contract.approveToken(DAI, [Paraswap]);
+    await contract.approveToken(WETH, [Paraswap]);
     await contract.approveToken(USDC, [Paraswap]);
     await contract.approveToken(USDT, [Paraswap]);
 
@@ -88,21 +89,6 @@ describe('Paraswap', () => {
         WETH,
         OneInchV5,
         Paraswap,
-        [],
-      );
-    });
-
-    it('Should deploy with multiple tokens', async () => {
-      const SwapAgg = await ethers.getContractFactory(
-        'SwapAggregators',
-      );
-
-      await SwapAgg.deploy(
-        PERMIT2_ADDRESS,
-        WETH,
-        OneInchV5,
-        Paraswap,
-        [DAI, USDC],
       );
     });
   });
@@ -119,7 +105,7 @@ describe('Paraswap', () => {
         destToken: DAI,
         srcToken: USDC,
         amount: amount.toString(),
-        srcDecimals: 18,
+        srcDecimals: 6,
         destDecimals: 18,
       };
 
@@ -135,7 +121,17 @@ describe('Paraswap', () => {
 
       const daiBalanceBefore = await dai.balanceOf(account.address);
 
-      await contract.swapParaswap(data.tx.data, 0, permit, signature);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const swapTx = await contract.populateTransaction.swapParaswap(
+        data.tx.data,
+      );
+
+      await contract.multicall([permitTx.data, swapTx.data]);
 
       expect(await dai.balanceOf(account.address)).to.gt(
         daiBalanceBefore,
@@ -161,9 +157,10 @@ describe('Paraswap', () => {
 
       const data = await paraswapCall(params);
 
-      await contract.swapETHParaswap(data, 0, {
-        value: amount,
-      });
+      const swapTx =
+        await contract.populateTransaction.swapParaswapETH(data, 0);
+
+      await contract.multicall([swapTx.data]);
 
       expect(await usdt.balanceOf(account.address)).to.gt(
         usdtBalanceBefore,
@@ -210,7 +207,7 @@ describe('Paraswap', () => {
 
       const balanceBefore = await account.getBalance();
 
-      await contract.withdrawAdmin();
+      await contract.withdrawAdmin(account.address);
 
       expect(await account.getBalance()).to.gt(balanceBefore);
     });

@@ -64,6 +64,7 @@ const getTX = async (p: Partial<ParaswapParams>) => {
   delete txParams.amount;
 
   const tx = await getTransaction(txParams);
+
   return tx.data;
 };
 

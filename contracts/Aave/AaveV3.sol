@@ -2,8 +2,8 @@
 pragma solidity ^0.8.18;
 
 import "../Proxy.sol";
-import "./IWethGateway.sol";
 import "../interfaces/IWETH9.sol";
+import "../interfaces/Aave/IWethGateway.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface AavePoolV3 {
