@@ -1,10 +1,9 @@
-import { PERMIT2_ADDRESS } from '@uniswap/permit2-sdk';
 import { ethers } from 'hardhat';
+import { PERMIT2_ADDRESS } from '@uniswap/permit2-sdk';
 
-const NFPM = '0xC36442b4a4522E871399CD717aBDD847Ab11FE88';
-const SWAP_ROUTER = '0xE592427A0AEce92De3Edee1F18E0157C05861564';
 const WETH = '0x82af49447d8a07e3bd95bd0d56f35241523fbab1';
-const USDC = '0xff970a61a04b1ca14834a43f5de4533ebddb5cc8';
+const OneInchV5 = '0x1111111254EEB25477B68fb85Ed929f73A960582';
+const Paraswap = '0x55b916ce078ea594c10a874ba67ecc3d62e29822';
 
 async function main() {
   const [account] = await ethers.getSigners();
@@ -19,21 +18,20 @@ async function main() {
     (await account.getBalance()).toString(),
   );
 
-  const Uniswap = await ethers.getContractFactory('Uniswap');
+  const SwapAgg = await ethers.getContractFactory('SwapAggregators');
 
-  const uniswap = await Uniswap.connect(account).deploy(
+  const uniswap = await SwapAgg.connect(account).deploy(
     PERMIT2_ADDRESS,
     WETH,
-    SWAP_ROUTER,
-    NFPM,
-    [USDC, WETH],
+    OneInchV5,
+    Paraswap,
   );
 
   await uniswap.deployed();
 
   console.log(uniswap);
   console.log(
-    `Uniswap proxy contract deployed to ${uniswap.address}`,
+    `SwapAggregator proxy contract deployed to ${uniswap.address}`,
   );
 }
 
@@ -41,5 +39,6 @@ async function main() {
 // and properly handle errors.
 main().catch((error) => {
   console.error(error);
+
   process.exitCode = 1;
 });
