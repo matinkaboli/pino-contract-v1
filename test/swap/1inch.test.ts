@@ -146,8 +146,7 @@ describe('1Inch', () => {
       const usdcBalanceBefore = await usdc.balanceOf(account.address);
 
       const swapParams = {
-        fromTokenAddress:
-          '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+        fromTokenAddress: WETH,
         toTokenAddress: USDC,
         destReceiver: account.address,
         amount: amount.toString(),
@@ -157,12 +156,13 @@ describe('1Inch', () => {
 
       const query = await swapQuery(swapParams);
 
-      const swapTx = await contract.populateTransaction.swap1InchETH(
+      const wrapTx = await contract.populateTransaction.wrapETH(0);
+
+      const swapTx = await contract.populateTransaction.swap1Inch(
         query.tx.data,
-        0,
       );
 
-      await contract.multicall([swapTx.data]);
+      await contract.multicall([wrapTx.data, swapTx.data]);
 
       expect(await usdc.balanceOf(account.address)).to.gt(
         usdcBalanceBefore,
