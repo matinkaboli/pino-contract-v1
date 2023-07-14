@@ -34,30 +34,10 @@ contract SwapAggregators is ISwapAggregators, Pino {
         _require(success, ErrorCodes.FAIELD_TO_SWAP_USING_1INCH);
     }
 
-    /// @notice Swaps using 1Inch protocol
-    /// @dev Uses ETH only
-    /// @param _data 1Inch protocol generated data from API
-    /// @param _proxyFee Fee of the proxy contract
-    function swap1InchETH(bytes calldata _data, uint256 _proxyFee) external payable ethUnlocked {
-        (bool success,) = OInch.call{value: msg.value - _proxyFee}(_data);
-
-        _require(success, ErrorCodes.FAIELD_TO_SWAP_USING_1INCH);
-    }
-
     /// @notice Swaps using Paraswap protocol
     /// @param _data Paraswap protocol generated data from API
     function swapParaswap(bytes calldata _data) external payable {
         (bool success,) = Paraswap.call(_data);
-
-        _require(success, ErrorCodes.FAIELD_TO_SWAP_USING_PARASWAP);
-    }
-
-    /// @notice Swaps using Paraswap protocol
-    /// @dev Uses ETH only
-    /// @param _data Paraswap protocol generated data from API
-    /// @param _proxyFee Fee of the proxy contract
-    function swapParaswapETH(bytes calldata _data, uint256 _proxyFee) external payable ethUnlocked {
-        (bool success,) = Paraswap.call{value: msg.value - _proxyFee}(_data);
 
         _require(success, ErrorCodes.FAIELD_TO_SWAP_USING_PARASWAP);
     }
@@ -67,16 +47,6 @@ contract SwapAggregators is ISwapAggregators, Pino {
     /// @param _data 0x protocol generated data from API
     function swap0x(address _swapTarget, bytes calldata _data) external payable {
         (bool success,) = payable(_swapTarget).call(_data);
-
-        _require(success, ErrorCodes.FAIELD_TO_SWAP_USING_0X);
-    }
-
-    /// @notice Swaps using 0x protocol
-    /// @param _swapTarget Swap target address, used for sending _data
-    /// @param _proxyFee Fee of the proxy contract
-    /// @param _data 0x protocol generated data from API
-    function swap0xETH(address _swapTarget, bytes calldata _data, uint24 _proxyFee) external payable {
-        (bool success,) = payable(_swapTarget).call{value: msg.value - _proxyFee}(_data);
 
         _require(success, ErrorCodes.FAIELD_TO_SWAP_USING_0X);
     }

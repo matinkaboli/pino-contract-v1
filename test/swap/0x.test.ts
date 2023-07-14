@@ -272,13 +272,11 @@ describe('0x', () => {
 
       const lusdBalanceBefore = await lusd.balanceOf(account.address);
 
-      const swapTx = await contract.populateTransaction.swap0xETH(
+      const wrapTx = await contract.populateTransaction.wrapETH(0);
+
+      const swapTx = await contract.populateTransaction.swap0x(
         quote.to,
         quote.data,
-        0, // proxy fee
-        {
-          value: amount,
-        },
       );
 
       const sweepTx = await contract.populateTransaction.sweepToken(
@@ -286,9 +284,12 @@ describe('0x', () => {
         account.address,
       );
 
-      await contract.multicall([swapTx.data, sweepTx.data], {
-        value: amount,
-      });
+      await contract.multicall(
+        [wrapTx.data, swapTx.data, sweepTx.data],
+        {
+          value: amount,
+        },
+      );
 
       expect(await lusd.balanceOf(account.address)).to.gt(
         lusdBalanceBefore,

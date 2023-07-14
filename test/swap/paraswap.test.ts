@@ -97,13 +97,14 @@ describe('Paraswap', () => {
     it('Should swap USDC for DAI', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const token = USDC;
       const amount = 100n * 10n ** 6n;
 
       const params = {
         userAddress: '0x1E7A7Bb102c04e601dE48a68A88Ec6EE59C372b9',
         receiver: contract.address,
         destToken: DAI,
-        srcToken: USDC,
+        srcToken: token,
         amount: amount.toString(),
         srcDecimals: 6,
         destDecimals: 18,
@@ -114,7 +115,7 @@ describe('Paraswap', () => {
       const { signature, permit } = await sign(
         {
           amount,
-          token: USDC,
+          token,
         },
         contract.address,
       );
@@ -157,10 +158,13 @@ describe('Paraswap', () => {
 
       const data = await paraswapCall(params);
 
-      const swapTx =
-        await contract.populateTransaction.swapParaswapETH(data, 0);
+      const wrapTx = await contract.populateTransaction.wrapETH(0);
 
-      await contract.multicall([swapTx.data]);
+      const swapTx = await contract.populateTransaction.swapParaswap(
+        data,
+      );
+
+      await contract.multicall([wrapTx.data, swapTx.data]);
 
       expect(await usdt.balanceOf(account.address)).to.gt(
         usdtBalanceBefore,
