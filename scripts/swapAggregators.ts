@@ -1,9 +1,9 @@
 import { ethers } from 'hardhat';
 import { PERMIT2_ADDRESS } from '@uniswap/permit2-sdk';
 
-const WETH = '0x82af49447d8a07e3bd95bd0d56f35241523fbab1';
+const WETH = '0x82af49447d8a07e3bd95bd0d56f35241523fbab1'; // ARBITRUM ADDRESS OF WETH9
+const Paraswap = '0xDEF171Fe48CF0115B1d80b88dc8eAB59176FEe57';
 const OneInchV5 = '0x1111111254EEB25477B68fb85Ed929f73A960582';
-const Paraswap = '0x55b916ce078ea594c10a874ba67ecc3d62e29822';
 
 async function main() {
   const [account] = await ethers.getSigners();
