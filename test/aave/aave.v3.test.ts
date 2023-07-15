@@ -4,31 +4,30 @@ import { constants } from 'ethers';
 import { PERMIT2_ADDRESS } from '@uniswap/permit2-sdk';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import {
-  loadFixture,
   time,
+  loadFixture,
 } from '@nomicfoundation/hardhat-network-helpers';
 import {
   DAI,
   USDC,
   USDT,
-  WBTC,
   WETH,
   WHALE3POOL,
 } from '../utils/addresses';
 import {
-  AavePoolV3,
   IERC20,
   IWETH9,
   IWethGateway,
+  ILendingPoolV3,
 } from '../../typechain-types';
 import { impersonate, signer } from '../utils/helpers';
 
-const POOL = '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2';
 const WETH_GATEWAY = '0xD322A49006FC828F9B5B37Ab215F99B4E5caB19C';
+const LENDING_POOL_V2 = '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2';
+const LENDING_POOL_V3 = '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2';
 
 const A_DAI = '0x018008bfb33d285247A21d44E50697654f754e63';
 const A_WETH = '0x4d5F47FA6A74757f35C14fD3a6Ef8E3C9BC514E8';
-const A_WBTC = '0x5Ee5bf7ae06D1Be5997A1A72006FE6C607eC6DE8';
 const A_USDC = '0x98C23E9d8f34FEFb1B7BD6a91B7FF122F4e16F5c';
 const A_USDT = '0x23878914EFE38d27C4D67Ab83ed1b93A74D4086a';
 
@@ -41,23 +40,38 @@ describe('Aave - V3', () => {
   let aUsdc: IERC20;
   let aUsdt: IERC20;
   let aWeth: IERC20;
-  let aave: AavePoolV3;
+  let aave: ILendingPoolV3;
+  let wethGateway: IWethGateway;
   let account: SignerWithAddress;
   let otherAccount: SignerWithAddress;
 
   const deploy = async () => {
-    const AaveV3 = await ethers.getContractFactory('AaveV3');
+    const AaveV3 = await ethers.getContractFactory('Aave');
 
     const contract = await AaveV3.deploy(
       PERMIT2_ADDRESS,
       WETH,
-      POOL,
+      LENDING_POOL_V2,
+      LENDING_POOL_V3,
       WETH_GATEWAY,
-      [USDC, DAI, A_USDC, A_DAI],
     );
 
-    await contract.approveToken(WETH, [POOL, WETH_GATEWAY]);
-    await contract.approveToken(A_WETH, [POOL, WETH_GATEWAY]);
+    await contract.approveToken(USDC, [
+      LENDING_POOL_V3,
+      WETH_GATEWAY,
+    ]);
+    await contract.approveToken(A_USDC, [
+      LENDING_POOL_V3,
+      WETH_GATEWAY,
+    ]);
+    await contract.approveToken(WETH, [
+      LENDING_POOL_V3,
+      WETH_GATEWAY,
+    ]);
+    await contract.approveToken(A_WETH, [
+      LENDING_POOL_V3,
+      WETH_GATEWAY,
+    ]);
 
     return { contract, sign: await signer(account) };
   };
@@ -74,14 +88,21 @@ describe('Aave - V3', () => {
     aUsdc = await ethers.getContractAt('IERC20', A_USDC);
     aUsdt = await ethers.getContractAt('IERC20', A_USDT);
     aWeth = await ethers.getContractAt('IERC20', A_WETH);
-    aave = await ethers.getContractAt('AavePoolV3', POOL);
+    aave = await ethers.getContractAt(
+      'ILendingPoolV3',
+      LENDING_POOL_V2,
+    );
+    wethGateway = await ethers.getContractAt(
+      'IWethGateway',
+      WETH_GATEWAY,
+    );
 
     const ethAmount = 3n * 10n ** 18n;
     const daiAmount = 5000n * 10n ** 18n;
-    const usdcAmount = 1500n * 10n ** 6n;
+    const usdAmount = 1500n * 10n ** 6n;
 
-    await usdc.connect(whale).transfer(account.address, usdcAmount);
-    await usdt.connect(whale).transfer(account.address, usdcAmount);
+    await usdc.connect(whale).transfer(account.address, usdAmount);
+    await usdt.connect(whale).transfer(account.address, usdAmount);
     await dai.connect(whale).transfer(account.address, daiAmount);
     await weth.deposit({
       value: ethAmount,
@@ -89,8 +110,8 @@ describe('Aave - V3', () => {
 
     expect(await dai.balanceOf(account.address)).to.gte(daiAmount);
     expect(await weth.balanceOf(account.address)).to.gte(ethAmount);
-    expect(await usdc.balanceOf(account.address)).to.gte(usdcAmount);
-    expect(await usdt.balanceOf(account.address)).to.gte(usdcAmount);
+    expect(await usdc.balanceOf(account.address)).to.gte(usdAmount);
+    expect(await usdt.balanceOf(account.address)).to.gte(usdAmount);
 
     await dai.approve(PERMIT2_ADDRESS, constants.MaxUint256);
     await weth.approve(PERMIT2_ADDRESS, constants.MaxUint256);
@@ -103,61 +124,48 @@ describe('Aave - V3', () => {
 
   describe('Deployment', () => {
     it('Should deploy with 0 tokens', async () => {
-      const AaveV3 = await ethers.getContractFactory('AaveV3');
+      const AaveV3 = await ethers.getContractFactory('Aave');
 
       await AaveV3.deploy(
         PERMIT2_ADDRESS,
         WETH,
-        POOL,
+        LENDING_POOL_V2,
+        LENDING_POOL_V3,
         WETH_GATEWAY,
-        [],
-      );
-    });
-
-    it('Should deploy with multiple tokens', async () => {
-      const AaveV3 = await ethers.getContractFactory('AaveV3');
-
-      await AaveV3.deploy(PERMIT2_ADDRESS, WETH, POOL, WETH_GATEWAY, [
-        DAI,
-        USDC,
-        A_DAI,
-        A_USDC,
-      ]);
-    });
-
-    it('Should deploy with all aave tokens and aTokens', async () => {
-      const AaveV3 = await ethers.getContractFactory('AaveV3');
-
-      await AaveV3.deploy(
-        PERMIT2_ADDRESS,
-        WETH,
-        POOL,
-        WETH_GATEWAY,
-        [WBTC, A_WBTC, WETH, A_WETH],
-        {
-          gasLimit: 10_000_000,
-        },
       );
     });
   });
 
-  describe('Supply', () => {
+  describe('Deposit', () => {
     it('Should supply USDC', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const token = USDC;
       const amount = 1000n * 10n ** 6n;
 
       const { signature, permit } = await sign(
         {
           amount,
-          token: USDC,
+          token,
         },
         contract.address,
       );
 
       const aUsdcBalance = await aUsdc.balanceOf(account.address);
 
-      await contract.supply(permit, signature);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const depositTx = await contract.populateTransaction.depositV3({
+        token,
+        amount,
+        recipient: account.address,
+      });
+
+      await contract.multicall([permitTx.data, depositTx.data]);
 
       expect(await aUsdc.balanceOf(account.address)).to.gt(
         aUsdcBalance,
@@ -167,21 +175,41 @@ describe('Aave - V3', () => {
     it('Should supply USDT', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
-      await contract.approveToken(USDT, [POOL]);
-
+      const token = USDT;
       const amount = 1000n * 10n ** 6n;
 
       const { signature, permit } = await sign(
         {
           amount,
-          token: USDT,
+          token,
         },
         contract.address,
       );
 
       const aUsdtBalance = await aUsdt.balanceOf(account.address);
 
-      await contract.supply(permit, signature);
+      const approveTx =
+        await contract.populateTransaction.approveToken(USDT, [
+          LENDING_POOL_V3,
+        ]);
+
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const depositTx = await contract.depositV3({
+        token,
+        amount,
+        recipient: account.address,
+      });
+
+      await contract.multicall([
+        approveTx.data,
+        permitTx.data,
+        depositTx.data,
+      ]);
 
       expect(await aUsdt.balanceOf(account.address)).to.gt(
         aUsdtBalance,
@@ -191,19 +219,39 @@ describe('Aave - V3', () => {
     it('Should supply DAI', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const token = DAI;
       const amount = 1000n * 10n ** 18n;
 
       const { signature, permit } = await sign(
         {
+          token,
           amount,
-          token: DAI,
         },
         contract.address,
       );
 
       const aDaiBalance = await aDai.balanceOf(account.address);
 
-      await contract.supply(permit, signature);
+      const approveTx =
+        await contract.populateTransaction.approveToken(DAI, [
+          LENDING_POOL_V3,
+        ]);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const depositTx = await contract.populateTransaction.depositV3({
+        token,
+        amount,
+        recipient: account.address,
+      });
+
+      await contract.multicall([
+        approveTx.data,
+        permitTx.data,
+        depositTx.data,
+      ]);
 
       expect(await aDai.balanceOf(account.address)).to.gt(
         aDaiBalance,
@@ -213,19 +261,31 @@ describe('Aave - V3', () => {
     it('Should supply WETH', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const token = WETH;
       const amount = 1n * 10n ** 18n;
 
       const { signature, permit } = await sign(
         {
+          token,
           amount,
-          token: WETH,
         },
         contract.address,
       );
 
       const aWethBalance = await aWeth.balanceOf(account.address);
 
-      await contract.supply(permit, signature);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const depositTx = await contract.populateTransaction.depositV3({
+        token,
+        amount,
+        recipient: account.address,
+      });
+
+      await contract.multicall([permitTx.data, depositTx.data]);
 
       expect(await aWeth.balanceOf(account.address)).to.gt(
         aWethBalance,
@@ -235,6 +295,7 @@ describe('Aave - V3', () => {
     it('Should supply ETH directly', async () => {
       const { contract } = await loadFixture(deploy);
 
+      const token = WETH;
       const fee = 3000n;
       const amount = 10n * 10n ** 18n;
       const minimumAmount = 9n * 10n ** 18n;
@@ -243,8 +304,15 @@ describe('Aave - V3', () => {
         account.address,
       );
 
-      await contract.supplyETH(fee, {
-        value: amount - fee,
+      const wrapTx = await contract.populateTransaction.wrapETH(fee);
+      const depositTx = await contract.populateTransaction.depositV3({
+        token,
+        amount,
+        recipient: account.address,
+      });
+
+      await contract.multicall([wrapTx.data, depositTx.data], {
+        value: amount + fee,
       });
 
       const aWethBalanceAfter = await aWeth.balanceOf(
@@ -261,17 +329,30 @@ describe('Aave - V3', () => {
     it('Should supply USDC and borrow DAI', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const token = USDC;
       const amount = 1000n * 10n ** 6n;
 
       const sign0 = await sign(
         {
+          token,
           amount,
-          token: USDC,
         },
         contract.address,
       );
 
-      await contract.supply(sign0.permit, sign0.signature);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          sign0.permit,
+          sign0.signature,
+        );
+
+      const depositTx = await contract.populateTransaction.depositV3({
+        token,
+        amount,
+        recipient: account.address,
+      });
+
+      await contract.multicall([permitTx.data, depositTx.data]);
 
       const borrowAmount = 200n * 10n ** 18n;
 
@@ -283,31 +364,67 @@ describe('Aave - V3', () => {
 
       expect(daiBalanceAfter).to.gt(daiBalanceBefore);
 
+      const repayAmount = 250n * 10n ** 18n;
+
       const sign1 = await sign(
         {
           token: DAI,
-          amount: 500n * 10n ** 18n,
+          amount: repayAmount,
         },
         contract.address,
       );
 
-      await contract.repay(2, sign1.permit, sign1.signature);
+      const approveTx =
+        await contract.populateTransaction.approveToken(DAI, [
+          LENDING_POOL_V3,
+        ]);
+
+      const permitTx2 =
+        await contract.populateTransaction.permitTransferFrom(
+          sign1.permit,
+          sign1.signature,
+        );
+
+      const repayTx = await contract.populateTransaction.repayV3({
+        token: DAI,
+        rateMode: 2,
+        amount: repayAmount,
+        recipient: account.address,
+      });
+
+      await contract.multicall([
+        approveTx.data,
+        permitTx2.data,
+        repayTx.data,
+      ]);
     });
 
     it('Should supply USDC and borrow ETH', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const token = USDC;
       const amount = 1000n * 10n ** 6n;
 
       const sign0 = await sign(
         {
+          token,
           amount,
-          token: USDC,
         },
         contract.address,
       );
 
-      await contract.supply(sign0.permit, sign0.signature);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          sign0.permit,
+          sign0.signature,
+        );
+      const depositTx = await contract.populateTransaction.depositV3({
+        token,
+        amount,
+        recipient: account.address,
+      });
+
+      await contract.multicall([permitTx.data, depositTx.data]);
 
       const borrowAmount = 1n * 10n ** 16n;
 
@@ -319,7 +436,15 @@ describe('Aave - V3', () => {
 
       expect(wethBalanceAfter).to.gt(wethBalanceBefore);
 
-      await contract.repayETH(2, 0, {
+      const wrapTx = await contract.populateTransaction.wrapETH(0);
+      const repayTx = await contract.populateTransaction.repayV3({
+        token: WETH,
+        rateMode: 2,
+        amount: borrowAmount,
+        recipient: account.address,
+      });
+
+      await contract.multicall([wrapTx.data, repayTx.data], {
         value: borrowAmount,
       });
     });
@@ -327,32 +452,49 @@ describe('Aave - V3', () => {
     it('Should supply USDC and borrow ETH using repayETH2', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const token = USDC;
       const amount = 1000n * 10n ** 6n;
 
       const sign0 = await sign(
         {
+          token,
           amount,
-          token: USDC,
         },
         contract.address,
       );
 
-      await contract.supply(sign0.permit, sign0.signature);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          sign0.permit,
+          sign0.signature,
+        );
+
+      const depositTx = await contract.populateTransaction.depositV3({
+        token,
+        amount,
+        recipient: account.address,
+      });
+
+      await contract.multicall([permitTx.data, depositTx.data]);
 
       const borrowAmount = 1n * 10n ** 16n;
 
       const wethBalanceBefore = await weth.balanceOf(account.address);
 
-      // await wethGateway.borrowETH(LENDING_POOL, borrowAmount, 2, 0);
       await aave.borrow(WETH, borrowAmount, 2, 0, account.address);
 
       const wethBalanceAfter = await weth.balanceOf(account.address);
 
       expect(wethBalanceAfter).to.gt(wethBalanceBefore);
 
-      // await contract.approveToken(WETH, [LENDING_POOL]);
-
-      await contract.repayETH(2, 0, {
+      const wrapTx = await contract.populateTransaction.wrapETH(0);
+      const repayTx = await contract.populateTransaction.repayV3({
+        token: WETH,
+        recipient: account.address,
+        amount: borrowAmount,
+        rateMode: 2,
+      });
+      await contract.multicall([wrapTx.data, repayTx.data], {
         value: borrowAmount * 2n,
       });
     });
@@ -362,6 +504,7 @@ describe('Aave - V3', () => {
     it('Should supply USDC and withdraw it', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const token = USDC;
       const amount = 100n * 10n ** 6n;
       const minimumAmount = 90n * 10n ** 6n;
 
@@ -377,7 +520,19 @@ describe('Aave - V3', () => {
         account.address,
       );
 
-      await contract.supply(permit, signature);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const depositTx = await contract.populateTransaction.depositV3({
+        token,
+        amount,
+        recipient: account.address,
+      });
+
+      await contract.multicall([permitTx.data, depositTx.data]);
 
       const aUsdcBalanceAfter = await aUsdc.balanceOf(
         account.address,
@@ -395,7 +550,20 @@ describe('Aave - V3', () => {
 
       const usdcBalanceBefore = await usdc.balanceOf(account.address);
 
-      await contract.withdraw(permit2, signature2, USDC);
+      const permitTx2 =
+        await contract.populateTransaction.permitTransferFrom(
+          permit2,
+          signature2,
+        );
+
+      const withdrawTx =
+        await contract.populateTransaction.withdrawV3({
+          token,
+          amount: aUsdcBalanceAfter,
+          recipient: account.address,
+        });
+
+      await contract.multicall([permitTx2.data, withdrawTx.data]);
 
       expect(await usdc.balanceOf(account.address)).to.gt(
         usdcBalanceBefore.add(minimumAmount),
@@ -405,20 +573,40 @@ describe('Aave - V3', () => {
     it('Should supply DAI and withdraw it after 1 year', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const token = DAI;
       const amount = 100n * 10n ** 18n;
       const minimumAmount = 101n * 10n ** 18n;
 
       const { signature, permit } = await sign(
         {
+          token,
           amount,
-          token: DAI,
         },
         contract.address,
       );
 
       const aDaiBalanceBefore = await aDai.balanceOf(account.address);
 
-      await contract.supply(permit, signature);
+      const approveTx =
+        await contract.populateTransaction.approveToken(DAI, [
+          LENDING_POOL_V3,
+        ]);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const depositTx = await contract.populateTransaction.depositV3({
+        token,
+        amount,
+        recipient: account.address,
+      });
+
+      await contract.multicall([
+        approveTx.data,
+        permitTx.data,
+        depositTx.data,
+      ]);
 
       expect(await aDai.balanceOf(account.address)).to.gt(
         aDaiBalanceBefore,
@@ -441,7 +629,27 @@ describe('Aave - V3', () => {
 
       const daiBalanceBefore = await dai.balanceOf(account.address);
 
-      await contract.withdraw(permit2, signature2, DAI);
+      const approveTx2 =
+        await contract.populateTransaction.approveToken(A_DAI, [
+          LENDING_POOL_V3,
+        ]);
+      const permitTx2 =
+        await contract.populateTransaction.permitTransferFrom(
+          permit2,
+          signature2,
+        );
+      const withdrawTx =
+        await contract.populateTransaction.withdrawV3({
+          token,
+          amount: aDaiBalanceAfter2,
+          recipient: account.address,
+        });
+
+      await contract.multicall([
+        approveTx2.data,
+        permitTx2.data,
+        withdrawTx.data,
+      ]);
 
       expect(await dai.balanceOf(account.address)).to.gt(
         daiBalanceBefore.add(minimumAmount),
@@ -451,13 +659,14 @@ describe('Aave - V3', () => {
     it('Should supply WETH and withdraw it', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const token = WETH;
       const amount = 2n * 10n ** 18n;
       const minimumAmount = 1n * 10n ** 18n;
 
       const { signature, permit } = await sign(
         {
           amount,
-          token: WETH,
+          token,
         },
         contract.address,
       );
@@ -466,7 +675,18 @@ describe('Aave - V3', () => {
         account.address,
       );
 
-      await contract.supply(permit, signature);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const depositTx = await contract.populateTransaction.depositV3({
+        token,
+        amount,
+        recipient: account.address,
+      });
+
+      await contract.multicall([permitTx.data, depositTx.data]);
 
       const aWethBalanceAfter = await aWeth.balanceOf(
         account.address,
@@ -484,7 +704,20 @@ describe('Aave - V3', () => {
 
       const wethBalanceBefore = await weth.balanceOf(account.address);
 
-      await contract.withdraw(permit2, signature2, WETH);
+      const permitTx2 =
+        await contract.populateTransaction.permitTransferFrom(
+          permit2,
+          signature2,
+        );
+
+      const withdrawTx =
+        await contract.populateTransaction.withdrawV3({
+          token,
+          amount,
+          recipient: account.address,
+        });
+
+      await contract.multicall([permitTx2.data, withdrawTx.data]);
 
       expect(await weth.balanceOf(account.address)).to.gt(
         wethBalanceBefore.add(minimumAmount),
@@ -495,6 +728,7 @@ describe('Aave - V3', () => {
       const { contract, sign } = await loadFixture(deploy);
 
       const fee = 3000n;
+      const token = WETH;
       const amount = 10n * 10n ** 18n;
       const minimumAmount = 9n * 10n ** 18n;
 
@@ -502,8 +736,15 @@ describe('Aave - V3', () => {
         account.address,
       );
 
-      await contract.supplyETH(fee, {
-        value: amount - fee,
+      const wrapTx = await contract.populateTransaction.wrapETH(fee);
+      const depositTx = await contract.populateTransaction.depositV3({
+        token,
+        amount,
+        recipient: account.address,
+      });
+
+      await contract.multicall([wrapTx.data, depositTx.data], {
+        value: amount + fee,
       });
 
       const aWethBalanceAfter = await aWeth.balanceOf(
@@ -524,7 +765,18 @@ describe('Aave - V3', () => {
         contract.address,
       );
 
-      await contract.withdrawETH(permit, signature);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const withdrawTx =
+        await contract.populateTransaction.withdrawETHV3({
+          amount,
+          recipient: account.address,
+        });
+
+      await contract.multicall([permitTx.data, withdrawTx.data]);
 
       expect(await account.getBalance()).to.gt(
         balanceBefore.add(minimumAmount),
@@ -535,6 +787,7 @@ describe('Aave - V3', () => {
       const { contract, sign } = await loadFixture(deploy);
 
       const fee = 3000n;
+      const token = WETH;
       const amount = 10n * 10n ** 18n;
       const minimumAmount = 9n * 10n ** 18n;
 
@@ -542,8 +795,15 @@ describe('Aave - V3', () => {
         account.address,
       );
 
-      await contract.supplyETH(fee, {
-        value: amount - fee,
+      const wrapTx = await contract.populateTransaction.wrapETH(fee);
+      const depositTx = await contract.populateTransaction.depositV3({
+        token,
+        amount,
+        recipient: account.address,
+      });
+
+      await contract.multicall([wrapTx.data, depositTx.data], {
+        value: amount + fee,
       });
 
       const aWethBalanceAfter = await aWeth.balanceOf(
@@ -564,7 +824,20 @@ describe('Aave - V3', () => {
         contract.address,
       );
 
-      await contract.withdraw(permit, signature, WETH);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const withdrawTx =
+        await contract.populateTransaction.withdrawV3({
+          token,
+          amount: aWethBalanceAfter,
+          recipient: account.address,
+        });
+
+      await contract.multicall([permitTx.data, withdrawTx.data]);
 
       expect(await weth.balanceOf(account.address)).to.gt(
         wethBalanceBefore.add(minimumAmount),
@@ -581,10 +854,11 @@ describe('Aave - V3', () => {
 
       await contract.setNewAddresses(
         newLendingPoolAddress,
+        newLendingPoolAddress,
         WETH_GATEWAY,
       );
 
-      const currentOwner = await contract.pool();
+      const currentOwner = await contract.lendingPoolV3();
 
       expect(currentOwner).to.hexEqual(newLendingPoolAddress);
     });
@@ -598,7 +872,11 @@ describe('Aave - V3', () => {
       await expect(
         contract
           .connect(otherAccount)
-          .setNewAddresses(newLendingPoolAddress, WETH_GATEWAY),
+          .setNewAddresses(
+            newLendingPoolAddress,
+            newLendingPoolAddress,
+            WETH_GATEWAY,
+          ),
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
 
@@ -614,7 +892,7 @@ describe('Aave - V3', () => {
 
       const balanceBefore = await account.getBalance();
 
-      await contract.withdrawAdmin();
+      await contract.withdrawAdmin(account.address);
 
       expect(await account.getBalance()).to.gt(balanceBefore);
     });
