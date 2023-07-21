@@ -11,17 +11,6 @@ interface IBalancer {
         bytes userData;
         IAsset[] assets;
         uint256[] maxAmountsIn;
-        uint16 proxyFee;
-        ISignatureTransfer.PermitBatchTransferFrom permit;
-        bytes signature;
-    }
-
-    struct JoinPool2Params {
-        bytes32 poolId;
-        bytes userData;
-        IAsset[] assets;
-        uint256[] maxAmountsIn;
-        uint16 proxyFee;
     }
 
     struct SweepParams {
