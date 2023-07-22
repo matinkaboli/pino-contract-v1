@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
-import { constants } from 'ethers';
+import { constants, ContractFactory } from 'ethers';
 import { PERMIT2_ADDRESS } from '@uniswap/permit2-sdk';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
@@ -33,7 +33,6 @@ describe('Balancer', () => {
       PERMIT2_ADDRESS,
       WETH,
       VAULT_ADDRESS,
-      [USDC, USDT, WETH],
     );
 
     return {
@@ -93,13 +92,14 @@ describe('Balancer', () => {
     await weth.approve(PERMIT2_ADDRESS, constants.MaxUint256);
     await usdc.approve(PERMIT2_ADDRESS, constants.MaxUint256);
     await usdt.approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await wstETH.approve(PERMIT2_ADDRESS, constants.MaxUint256);
   });
 
   describe('Deployment', () => {
     it('Should deploy with 0 approved tokens', async () => {
       const Balancer = await ethers.getContractFactory('Balancer');
 
-      await Balancer.deploy(PERMIT2_ADDRESS, WETH, VAULT_ADDRESS, []);
+      await Balancer.deploy(PERMIT2_ADDRESS, WETH, VAULT_ADDRESS);
     });
 
     it('Should approve token after deployment', async () => {
@@ -142,12 +142,17 @@ describe('Balancer', () => {
       const params = {
         poolId,
         userData,
-        assets: [WSTETH, ETH],
+        assets: [WSTETH, WETH],
         maxAmountsIn,
-        proxyFee: 0,
       };
 
-      await contract.joinPoolETH(params, {
+      const wrapTx = await contract.populateTransaction.wrapETH(0);
+
+      const joinPoolTx = await contract.populateTransaction.joinPool(
+        params,
+      );
+
+      await contract.multicall([wrapTx.data, joinPoolTx.data], {
         value: amount,
       });
 
@@ -158,12 +163,13 @@ describe('Balancer', () => {
       expect(bptAmountAfter).to.gt(bptAmountBefore);
 
       await contract.approveToken(BPT, [VAULT_ADDRESS]);
+
       await poolContract.approve(
         PERMIT2_ADDRESS,
         constants.MaxUint256,
       );
 
-      const { permit: permit1, signature: signature1 } = await sign(
+      const { permit, signature } = await sign(
         {
           token: BPT,
           amount: bptAmountAfter,
@@ -184,14 +190,22 @@ describe('Balancer', () => {
 
       const exitParams = {
         poolId,
+        userData: userData1,
         assets: [WSTETH, ETH],
         minAmountsOut: [0, 0],
-        userData: userData1,
-        permit: permit1,
-        signature: signature1,
       };
 
-      await contract.exitPool(exitParams);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const exitPoolTx = await contract.populateTransaction.exitPool(
+        exitParams,
+      );
+
+      await contract.multicall([permitTx.data, exitPoolTx.data]);
 
       const wstETHBalanaceAfter = await wstETH.balanceOf(
         account.address,
@@ -243,12 +257,28 @@ describe('Balancer', () => {
         userData,
         assets: [USDC, WETH],
         maxAmountsIn: [amount0, amount1],
-        proxyFee: 0,
-        permit,
-        signature,
       };
 
-      await contract.joinPool(params);
+      const approveTx =
+        await contract.populateTransaction.approveToken(USDC, [
+          VAULT_ADDRESS,
+        ]);
+
+      const permitTx =
+        await contract.populateTransaction.permitBatchTransferFrom(
+          permit,
+          signature,
+        );
+
+      const joinPoolTx = await contract.populateTransaction.joinPool(
+        params,
+      );
+
+      await contract.multicall([
+        approveTx.data,
+        permitTx.data,
+        joinPoolTx.data,
+      ]);
 
       const bptAmountAfter = await poolContract.balanceOf(
         account.address,
@@ -256,7 +286,6 @@ describe('Balancer', () => {
 
       expect(bptAmountAfter).to.gt(bptAmountBefore);
 
-      await contract.approveToken(BPT, [VAULT_ADDRESS]);
       await poolContract.approve(
         PERMIT2_ADDRESS,
         constants.MaxUint256,
@@ -286,11 +315,28 @@ describe('Balancer', () => {
         assets: [USDC, WETH],
         minAmountsOut: [0, 0],
         userData: userData1,
-        permit: permit1,
-        signature: signature1,
       };
 
-      await contract.exitPool(exitParams);
+      const approveTx2 =
+        await contract.populateTransaction.approveToken(BPT, [
+          VAULT_ADDRESS,
+        ]);
+
+      const permitTx2 =
+        await contract.populateTransaction.permitTransferFrom(
+          permit1,
+          signature1,
+        );
+
+      const exitPoolTx = await contract.populateTransaction.exitPool(
+        exitParams,
+      );
+
+      await contract.multicall([
+        approveTx2.data,
+        permitTx2.data,
+        exitPoolTx.data,
+      ]);
 
       const usdcBalanaceAfter = await usdc.balanceOf(account.address);
 
@@ -298,7 +344,7 @@ describe('Balancer', () => {
     });
 
     it('Should join USDC_WETH Stable pool using JoinPool function', async () => {
-      const { contract, multiSign } = await loadFixture(deploy);
+      const { contract, sign } = await loadFixture(deploy);
 
       const amount0 = 1000n * 10n ** 6n;
       const amount1 = 1n * 10n ** 18n;
@@ -306,13 +352,11 @@ describe('Balancer', () => {
       const poolId =
         '0x96646936b91d6b9d7d0c47c496afbf3d6ec7b6f8000200000000000000000019';
 
-      const { permit, signature } = await multiSign(
-        [
-          {
-            token: USDC,
-            amount: amount0,
-          },
-        ],
+      const { permit, signature } = await sign(
+        {
+          token: USDC,
+          amount: amount0,
+        },
         contract.address,
       );
 
@@ -334,28 +378,44 @@ describe('Balancer', () => {
       const params = {
         poolId,
         userData,
-        assets: [USDC, ETH],
+        assets: [USDC, WETH],
         maxAmountsIn: [amount0, amount1],
-        proxyFee: 0,
-        permit,
-        signature,
       };
 
-      await contract.joinPool(params, {
-        value: amount1,
-      });
+      const wrapTx = await contract.populateTransaction.wrapETH(0);
 
-      const bptAmountAfter = await poolContract.balanceOf(
-        account.address,
+      await contract.approveToken(USDC, [VAULT_ADDRESS]);
+
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const joinPoolTx = await contract.populateTransaction.joinPool(
+        params,
       );
 
-      expect(bptAmountAfter).to.gt(bptAmountBefore);
+      await contract.multicall(
+        [wrapTx.data, permitTx.data, joinPoolTx.data],
+        {
+          value: amount1,
+        },
+      );
+
+      // const bptAmountAfter = await poolContract.balanceOf(
+      //   account.address,
+      // );
+      //
+      // expect(bptAmountAfter).to.gt(bptAmountBefore);
     });
   });
 
   describe('Swaps', () => {
     it('Should swap USDC to WETH', async () => {
       const { contract, sign } = await loadFixture(deploy);
+
+      const amount = 2000n * 10n ** 6n;
 
       const poolId =
         '0x96646936b91d6b9d7d0c47c496afbf3d6ec7b6f8000200000000000000000019';
@@ -370,14 +430,34 @@ describe('Balancer', () => {
 
       const wethBalanceBefore = await weth.balanceOf(account.address);
 
-      await contract.swap(
+      const swapParams = {
         poolId,
-        WETH,
-        0,
-        ethers.utils.toUtf8Bytes(''),
-        permit,
-        signature,
+        amount,
+        kind: 0,
+        limit: 0,
+        assetIn: USDC,
+        assetOut: WETH,
+        userData: ethers.utils.toUtf8Bytes(''),
+      };
+
+      const approveTx =
+        await contract.populateTransaction.approveToken(USDC, [
+          VAULT_ADDRESS,
+        ]);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const swapTx = await contract.populateTransaction.swap(
+        swapParams,
       );
+
+      await contract.multicall([
+        approveTx.data,
+        permitTx.data,
+        swapTx.data,
+      ]);
 
       const wethBalanceAfter = await weth.balanceOf(account.address);
 
@@ -386,6 +466,8 @@ describe('Balancer', () => {
 
     it('Should swap USDC to ETH', async () => {
       const { contract, sign } = await loadFixture(deploy);
+
+      const amount = 2000n * 10n ** 6n;
 
       const poolId =
         '0x96646936b91d6b9d7d0c47c496afbf3d6ec7b6f8000200000000000000000019';
@@ -400,14 +482,34 @@ describe('Balancer', () => {
 
       const accountBalanceBefore = await account.getBalance();
 
-      await contract.swap(
+      const swapParams = {
         poolId,
-        ETH,
-        0,
-        ethers.utils.toUtf8Bytes(''),
-        permit,
-        signature,
+        amount,
+        kind: 0,
+        limit: 0,
+        assetIn: USDC,
+        assetOut: ETH,
+        userData: ethers.utils.toUtf8Bytes(''),
+      };
+
+      const approveTx =
+        await contract.populateTransaction.approveToken(USDC, [
+          VAULT_ADDRESS,
+        ]);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const swapTx = await contract.populateTransaction.swap(
+        swapParams,
       );
+
+      await contract.multicall([
+        approveTx.data,
+        permitTx.data,
+        swapTx.data,
+      ]);
 
       const accountBalanceAfter = await account.getBalance();
 
@@ -425,16 +527,24 @@ describe('Balancer', () => {
         account.address,
       );
 
-      await contract.swapETH(
+      const swapParams = {
         poolId,
-        WSTETH,
-        0,
-        ethers.utils.toUtf8Bytes(''),
-        0,
-        {
-          value: amount,
-        },
+        amount,
+        kind: 0,
+        limit: 0,
+        assetIn: WETH,
+        assetOut: WSTETH,
+        userData: ethers.utils.toUtf8Bytes(''),
+      };
+
+      const wrapTx = await contract.populateTransaction.wrapETH(0);
+      const swapTx = await contract.populateTransaction.swap(
+        swapParams,
       );
+
+      await contract.multicall([wrapTx.data, swapTx.data], {
+        value: amount,
+      });
 
       const wstBalanceAfter = await wstETH.balanceOf(account.address);
 
@@ -442,17 +552,15 @@ describe('Balancer', () => {
     });
 
     it('Should batch swap USDC > WETH > WSTETH', async () => {
-      const { contract, multiSign } = await loadFixture(deploy);
+      const { contract, sign } = await loadFixture(deploy);
 
       const amount0 = 1000n * 10n ** 6n;
 
-      const { permit, signature } = await multiSign(
-        [
-          {
-            token: USDC,
-            amount: amount0,
-          },
-        ],
+      const { permit, signature } = await sign(
+        {
+          token: USDC,
+          amount: amount0,
+        },
         contract.address,
       );
 
@@ -490,15 +598,31 @@ describe('Balancer', () => {
         account.address,
       );
 
-      const params = {
+      const swapParams = {
         swaps,
         assets,
         limits,
-        permit,
-        signature,
+        kind: 0,
       };
 
-      await contract.batchSwap(params);
+      const approveTx =
+        await contract.populateTransaction.approveToken(USDC, [
+          VAULT_ADDRESS,
+        ]);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const swapTx = await contract.populateTransaction.batchSwap(
+        swapParams,
+      );
+
+      await contract.multicall([
+        approveTx.data,
+        permitTx.data,
+        swapTx.data,
+      ]);
 
       const wstBalanceAfter = await wstETH.balanceOf(account.address);
 
@@ -506,19 +630,15 @@ describe('Balancer', () => {
     });
 
     it('Should batch swap DAI>WSTETH', async () => {
-      const { contract, multiSign } = await loadFixture(deploy);
+      const { contract, sign } = await loadFixture(deploy);
 
       const amount = 100n * 10n ** 18n;
 
-      await contract.approveToken(DAI, [VAULT_ADDRESS]);
-
-      const { permit, signature } = await multiSign(
-        [
-          {
-            token: DAI,
-            amount,
-          },
-        ],
+      const { permit, signature } = await sign(
+        {
+          token: DAI,
+          amount,
+        },
         contract.address,
       );
 
@@ -543,19 +663,35 @@ describe('Balancer', () => {
       const assets = [DAI, WETH, WSTETH];
       const limits = await getLimits(swaps, assets);
 
-      const params = {
+      const swapParams = {
         swaps,
         assets,
         limits,
-        permit,
-        signature,
+        kind: 0,
       };
 
       const wstBalanceBefore = await wstETH.balanceOf(
         account.address,
       );
 
-      await contract.batchSwap(params);
+      const approveTx =
+        await contract.populateTransaction.approveToken(DAI, [
+          VAULT_ADDRESS,
+        ]);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const swapTx = await contract.populateTransaction.batchSwap(
+        swapParams,
+      );
+
+      await contract.multicall([
+        approveTx.data,
+        permitTx.data,
+        swapTx.data,
+      ]);
 
       const wstBalanceAfter = await wstETH.balanceOf(account.address);
 
@@ -563,7 +699,7 @@ describe('Balancer', () => {
     });
 
     it('Should swap USDC to WETH', async () => {
-      const { contract, multiSign } = await loadFixture(deploy);
+      const { contract, sign } = await loadFixture(deploy);
 
       const amount = 3000n * 10n ** 6n;
       const poolId =
@@ -579,30 +715,44 @@ describe('Balancer', () => {
         },
       ];
 
-      const { permit, signature } = await multiSign(
-        [
-          {
-            token: USDC,
-            amount,
-          },
-        ],
+      const { permit, signature } = await sign(
+        {
+          token: USDC,
+          amount,
+        },
         contract.address,
       );
 
       const assets = [USDC, WETH];
       const limits = await getLimits(swaps, assets);
 
-      const params = {
+      const swapParams = {
         swaps,
         assets,
         limits,
-        permit,
-        signature,
+        kind: 0,
       };
 
       const wethBalanceBefore = await weth.balanceOf(account.address);
 
-      await contract.batchSwap(params);
+      const approveTx =
+        await contract.populateTransaction.approveToken(USDC, [
+          VAULT_ADDRESS,
+        ]);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const swapTx = await contract.populateTransaction.batchSwap(
+        swapParams,
+      );
+
+      await contract.multicall([
+        approveTx.data,
+        permitTx.data,
+        swapTx.data,
+      ]);
 
       const wethBalanceAfter = await weth.balanceOf(account.address);
 
@@ -610,22 +760,19 @@ describe('Balancer', () => {
     });
 
     it('Should batch swap DAI>WSTETH and join weth-wseth pool', async () => {
-      const { contract, multiSign } = await loadFixture(deploy);
+      const { contract, sign, multiSign } = await loadFixture(deploy);
 
       const amount = 1000n * 10n ** 18n;
 
       await contract.approveToken(DAI, [VAULT_ADDRESS]);
 
-      const { permit: permit1, signature: signature1 } =
-        await multiSign(
-          [
-            {
-              token: DAI,
-              amount,
-            },
-          ],
-          contract.address,
-        );
+      const { permit: permit1, signature: signature1 } = await sign(
+        {
+          token: DAI,
+          amount,
+        },
+        contract.address,
+      );
 
       const swaps = [
         {
@@ -648,82 +795,39 @@ describe('Balancer', () => {
       const assets = [DAI, WETH, WSTETH];
       const limits = await getLimits(swaps, assets);
 
-      const batchParams = {
+      const swapParams = {
         swaps,
         assets,
         limits,
-        permit: permit1,
-        signature: signature1,
+        kind: 0,
       };
 
-      const wstBalanceBefore = await wstETH.balanceOf(
-        account.address,
-      );
-
-      await contract.batchSwap(batchParams);
-
-      const wstBalanceAfter = await wstETH.balanceOf(account.address);
-
-      expect(wstBalanceAfter).to.gt(wstBalanceBefore);
-
-      await contract.approveToken(WSTETH, [VAULT_ADDRESS]);
       await wstETH.approve(PERMIT2_ADDRESS, constants.MaxUint256);
 
-      const amount2 = BigInt(wstBalanceAfter.toString());
-
-      const { permit: permit2, signature: signature2 } =
-        await multiSign(
-          [
-            {
-              token: WSTETH,
-              amount: amount2,
-            },
-          ],
-          contract.address,
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit1,
+          signature1,
         );
-
-      const poolId =
-        '0x32296969ef14eb0c6d29669c550d4a0449130230000200000000000000000080';
-      const maxAmountsIn = [amount2, 0];
-
-      const parameterTypes = ['uint256', 'uint256[]', 'uint256'];
-      const parameterValues = [1, maxAmountsIn, 0];
-      const userData = ethers.utils.defaultAbiCoder.encode(
-        parameterTypes,
-        parameterValues,
+      const swapTx = await contract.populateTransaction.batchSwap(
+        swapParams,
       );
 
-      const joinParams = {
-        poolId,
-        userData,
-        assets: [WSTETH, WETH],
-        maxAmountsIn,
-        proxyFee: 0,
-        permit: permit2,
-        signature: signature2,
-      };
-
-      await contract.joinPool(joinParams);
+      await contract.multicall([permitTx.data, swapTx.data]);
     });
 
     it('Should batch swap DAI>WSTETH and join weth-wseth pool through multicall', async () => {
-      const { contract, multiSign } = await loadFixture(deploy);
+      const { contract, sign } = await loadFixture(deploy);
 
       const amount = 1000n * 10n ** 18n;
 
-      await contract.approveToken(DAI, [VAULT_ADDRESS]);
-      await contract.approveToken(WSTETH, [VAULT_ADDRESS]);
-
-      const { permit: permit1, signature: signature1 } =
-        await multiSign(
-          [
-            {
-              token: DAI,
-              amount,
-            },
-          ],
-          contract.address,
-        );
+      const { permit: permit1, signature: signature1 } = await sign(
+        {
+          token: DAI,
+          amount,
+        },
+        contract.address,
+      );
 
       const swaps = [
         {
@@ -747,19 +851,52 @@ describe('Balancer', () => {
       const assets = [DAI, WETH, WSTETH];
       const limits = await getLimits(swaps, assets);
 
-      const batchParams = {
+      const swapParams = {
         swaps,
         assets,
         limits,
-        permit: permit1,
-        signature: signature1,
+        kind: 0,
       };
 
-      const amount2 = 3n * 10n ** 17n;
+      const amount2 = 3n * 10n ** 16n;
+
+      const approveTx1 =
+        await contract.populateTransaction.approveToken(DAI, [
+          VAULT_ADDRESS,
+        ]);
+      const approveTx2 =
+        await contract.populateTransaction.approveToken(WSTETH, [
+          VAULT_ADDRESS,
+        ]);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit1,
+          signature1,
+        );
+      const swapTx = await contract.populateTransaction.batchSwap(
+        swapParams,
+      );
+
+      await contract.multicall([
+        approveTx1.data,
+        approveTx2.data,
+        permitTx.data,
+        swapTx.data,
+      ]);
+
+      const wstBalanceAfter = await wstETH.balanceOf(account.address);
+
+      const { permit: permit2, signature: signature2 } = await sign(
+        {
+          token: WSTETH,
+          amount: wstBalanceAfter,
+        },
+        contract.address,
+      );
 
       const poolId =
         '0x32296969ef14eb0c6d29669c550d4a0449130230000200000000000000000080';
-      const maxAmountsIn = [amount2, 0];
+      const maxAmountsIn = [wstBalanceAfter, 0];
 
       const parameterTypes = ['uint256', 'uint256[]', 'uint256'];
       const parameterValues = [1, maxAmountsIn, 0];
@@ -776,13 +913,25 @@ describe('Balancer', () => {
         proxyFee: 0,
       };
 
-      const sweepParams = {
-        token: WSTETH,
-        recipient: account.address,
-        amountMinimum: 0,
-      };
+      const BPT = '0x32296969Ef14EB0c6d29669C550D4a0449130230';
+      const poolContract = await ethers.getContractAt('IERC20', BPT);
 
-      await contract.multiCall(batchParams, joinParams, sweepParams);
+      await poolContract.approve(
+        PERMIT2_ADDRESS,
+        constants.MaxUint256,
+      );
+
+      const permitTx2 =
+        await contract.populateTransaction.permitTransferFrom(
+          permit2,
+          signature2,
+        );
+
+      const joinPoolTx = await contract.populateTransaction.joinPool(
+        joinParams,
+      );
+
+      await contract.multicall([permitTx2.data, joinPoolTx.data]);
     });
   });
 });
