@@ -5,15 +5,15 @@ import "./Errors.sol";
 import "../helpers/ErrorCodes.sol";
 
 contract EthLocker is Errors {
-    // 0 means unlocked. 1 means locked
-    uint8 private locked = 0;
+    // 2 means unlocked. 1 means locked
+    uint8 private locked = 2;
 
     function lockEth() internal {
         locked = 1;
     }
 
     function unlockEth() internal {
-        locked = 0;
+        locked = 2;
     }
 
     modifier ethLocked() {
@@ -23,7 +23,7 @@ contract EthLocker is Errors {
     }
 
     modifier ethUnlocked() {
-        _require(locked == 0, ErrorCodes.ETHER_AMOUNT_SURPASSES_MSG_VALUE);
+        _require(locked == 2, ErrorCodes.ETHER_AMOUNT_SURPASSES_MSG_VALUE);
         locked = 1;
 
         _;
