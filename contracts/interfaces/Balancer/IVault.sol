@@ -12,10 +12,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
-pragma experimental ABIEncoderV2;
 pragma solidity >=0.7.0 <0.9.0;
+pragma abicoder v2;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @dev This is an empty interface used to represent either ERC20-conforming token contracts or ETH (using the zero
@@ -167,6 +167,7 @@ interface IVault {
      * The `userData` field is ignored by the Vault, but forwarded to the Pool in the `onSwap` hook, and may be
      * used to extend swap behavior.
      */
+
     struct SingleSwap {
         bytes32 poolId;
         SwapKind kind;
