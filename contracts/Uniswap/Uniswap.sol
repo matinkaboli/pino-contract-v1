@@ -73,6 +73,9 @@ contract Uniswap is IUniswap, Pino {
     {
         nfpm = _nfpm;
         swapRouter = _swapRouter;
+
+        IERC20(address(_weth)).safeApprove(address(_nfpm), type(uint256).max);
+        IERC20(address(_weth)).safeApprove(address(_swapRouter), type(uint256).max);
     }
 
     /// @notice Swaps a fixed amount of token1 for a maximum possible amount of token2 through an intermediary pool.

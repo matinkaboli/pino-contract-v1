@@ -37,6 +37,10 @@ contract Aave is IAave, Pino {
         wethGateway = _wethGateway;
         lendingPoolV2 = _lendingPoolV2;
         lendingPoolV3 = _lendingPoolV3;
+
+        IERC20(address(_weth)).safeApprove(address(_wethGateway), type(uint256).max);
+        IERC20(address(_weth)).safeApprove(address(_lendingPoolV2), type(uint256).max);
+        IERC20(address(_weth)).safeApprove(address(_lendingPoolV3), type(uint256).max);
     }
 
     /// @notice Changes LendingPool and WethGateway address if necessary

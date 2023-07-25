@@ -14,7 +14,7 @@ import "../interfaces/Balancer/IBalancer.sol";
 contract Balancer is IBalancer, Pino {
     using SafeERC20 for IERC20;
 
-    IVault immutable Vault;
+    IVault public immutable Vault;
 
     /// @notice Sets Balancer Vault address and approves assets to it
     /// @param _permit2 Permit2 contract address
