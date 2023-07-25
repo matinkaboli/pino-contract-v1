@@ -37,6 +37,10 @@ const config: HardhatUserConfig = {
       url: process.env.ARBITRUM_URL,
       accounts: [`0x${process.env.ARBITRUM_PRIVATE_KEY}`],
     },
+    mainnet: {
+      url: process.env.MAINNET_URL,
+      accounts: [`0x${process.env.ARBITRUM_PRIVATE_KEY}`],
+    },
   },
   mocha: {
     timeout: 100000000,
