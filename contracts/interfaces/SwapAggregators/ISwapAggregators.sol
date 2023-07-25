@@ -15,7 +15,6 @@ interface ISwapAggregators {
     function swapParaswap(bytes calldata _data) external payable;
 
     /// @notice Swaps using 0x protocol
-    /// @param _swapTarget Swap target address, used for sending _data
     /// @param _data 0x protocol generated data from API
-    function swap0x(address _swapTarget, bytes calldata _data) external payable;
+    function swap0x(bytes calldata _data) external payable;
 }

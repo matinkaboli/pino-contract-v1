@@ -1,0 +1,13 @@
+const { PERMIT2, arbitrum } = require('../commonAddresses');
+
+const WETH_GATEWAY = '0xB5Ee21786D28c5Ba61661550879475976B707099';
+const LENDING_POOL_V2 = '0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9'; // AAVE V2 DOES NOT WORK with arbitrum
+const LENDING_POOL_V3 = '0x794a61358D6845594F94dc1DB02A252b5b4814aD';
+
+module.exports = [
+  PERMIT2,
+  arbitrum.WETH,
+  LENDING_POOL_V2,
+  LENDING_POOL_V3,
+  WETH_GATEWAY,
+];

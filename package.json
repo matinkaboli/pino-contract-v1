@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "deploy": "npx hardhat run scripts/$CONTRACT.ts --network $NETWORK",
+    "verify": "npx hardhat verify --constructor-args arguments/$NETWORK/$CONTRACT.js --network $NETWORK $ADDRESS"
+  },
   "devDependencies": {
     "@commitlint/cli": "^17.2.0",
     "@commitlint/config-conventional": "^17.2.0",
