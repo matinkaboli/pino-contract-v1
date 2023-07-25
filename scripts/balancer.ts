@@ -1,7 +1,8 @@
 import { ethers } from 'hardhat';
+import { PERMIT2_ADDRESS } from '@uniswap/permit2-sdk';
 
-import mainnetArguments from '../arguments/mainnet/uniswap';
-import arbitrumArguments from '../arguments/arbitrum/uniswap';
+import mainnetArguments from '../arguments/mainnet/balancer';
+import arbitrumArguments from '../arguments/arbitrum/balancer';
 
 async function main() {
   const { HARDHAT_NETWORK } = process.env;
@@ -24,15 +25,13 @@ async function main() {
     (await account.getBalance()).toString(),
   );
 
-  const Uniswap = await ethers.getContractFactory('Uniswap');
+  const Balancer = await ethers.getContractFactory('Balancer');
 
-  const uniswap = await Uniswap.connect(account).deploy(...args);
+  const balancer = await Balancer.connect(account).deploy(...args);
 
-  await uniswap.deployed();
+  await balancer.deployed();
 
-  console.log(
-    `Uniswap proxy contract deployed to ${uniswap.address}`,
-  );
+  console.log(`Aave proxy contract deployed to ${balancer.address}`);
 }
 
 main().catch((error) => {
