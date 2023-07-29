@@ -49,7 +49,7 @@ pragma solidity 0.8.18;
 pragma abicoder v2;
 
 /// @title UniswapV3 proxy contract
-/// @author Matin Kaboli
+/// @author Pino Development Team
 /// @notice Mints and Increases liquidity and swaps tokens
 /// @dev This contract uses Permit2
 interface IUniswap {
