@@ -1,5 +1,4 @@
 import { ethers } from 'hardhat';
-import { PERMIT2_ADDRESS } from '@uniswap/permit2-sdk';
 
 import mainnetArguments from '../arguments/mainnet/balancer';
 import arbitrumArguments from '../arguments/arbitrum/balancer';
