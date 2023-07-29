@@ -7,7 +7,7 @@ import "../interfaces/SwapAggregators/ISwapAggregators.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title Swap Aggregators Proxy contract
-/// @author Matin Kaboli
+/// @author Pino Development Team
 /// @notice Swaps tokens and send the new token to msg.sender
 /// @dev This contract uses Permit2
 contract SwapAggregators is ISwapAggregators, Pino {

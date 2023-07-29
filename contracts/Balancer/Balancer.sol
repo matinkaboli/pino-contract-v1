@@ -8,7 +8,7 @@ import "../interfaces/Balancer/IVault.sol";
 import "../interfaces/Balancer/IBalancer.sol";
 
 /// @title Balancer proxy contract
-/// @author Matin Kaboli
+/// @author Pino Development Team
 /// @notice Deposits and Withdraws ERC20/ETH tokens to the vault and handles swap functions
 /// @dev This contract uses Permit2
 contract Balancer is IBalancer, Pino {

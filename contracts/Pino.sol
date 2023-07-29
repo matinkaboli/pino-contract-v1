@@ -4,6 +4,10 @@ pragma solidity 0.8.18;
 import "./base/Owner.sol";
 import "./base/Multicall.sol";
 
+/// @title Pino main contract layout
+/// @author Pino Development Team
+/// @notice Inherits Owner, Payments, Permit2, and Multicall
+/// @dev This contract uses Permit2
 contract Pino is Owner, Multicall {
     /// @notice Proxy contract constructor, sets permit2 and weth addresses
     /// @param _permit2 Permit2 contract address
