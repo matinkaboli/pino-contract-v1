@@ -44,7 +44,7 @@ contract Lido is Pino {
     /// @param _proxyFee Fee of the proxy contract
     /// @param _recipient The destination address that will receive ST_ETH
     /// @return steth Amount of ST_ETH token that is being transferred to the recipient
-    function ethToStETH(uint256 _proxyFee, address _recipient) external payable returns (uint256 steth) {
+    function ethToStETH(uint256 _proxyFee, address _recipient) external payable ethUnlocked returns (uint256 steth) {
         steth = StETH.submit{value: msg.value - _proxyFee}(msg.sender);
 
         sweepStETH(_recipient);
@@ -53,7 +53,7 @@ contract Lido is Pino {
     /// @notice Converts ETH to WST_ETH and transfers WST_ETH to the recipient
     /// @param _proxyFee Fee of the proxy contract
     /// @param _recipient The destination address that will receive WST_ETH
-    function ethToWstETH(uint256 _proxyFee, address _recipient) external payable {
+    function ethToWstETH(uint256 _proxyFee, address _recipient) external payable ethUnlocked {
         _sendETH(address(WstETH), msg.value - _proxyFee);
 
         sweepToken(address(WstETH), _recipient);
