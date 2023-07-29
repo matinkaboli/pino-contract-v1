@@ -23,7 +23,9 @@ contract SwapAggregators is ISwapAggregators, Pino {
     /// @param _oInch 1Inch contract address
     /// @param _paraswap Paraswap contract address
     /// @param _zeroX 0x contract address
-    constructor(Permit2 _permit2, IWETH9 _weth, address _oInch, address _paraswap, address _zeroX) Pino(_permit2, _weth) {
+    constructor(Permit2 _permit2, IWETH9 _weth, address _oInch, address _paraswap, address _zeroX)
+        Pino(_permit2, _weth)
+    {
         OInch = _oInch;
         Paraswap = _paraswap;
         ZeroX = _zeroX;

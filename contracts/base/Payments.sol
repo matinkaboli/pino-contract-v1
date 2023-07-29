@@ -5,7 +5,7 @@ import "./Permit.sol";
 import "./Errors.sol";
 import "./EthLocker.sol";
 import "../helpers/ErrorCodes.sol";
-import "../interfaces/Permit2.sol";
+import "../interfaces/Permit2/Permit2.sol";
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 

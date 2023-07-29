@@ -65,11 +65,11 @@ contract Lido is Pino {
     /// @param _recipient The destination address that will receive ST_ETH
     /// @dev For security reasons, it is not possible to run functions inside of this function separately through a multicall
     /// @return steth Amount of ST_ETH token that is being transferred to msg.sender
-    function wethToStETH(address _recipient, ISignatureTransfer.PermitTransferFrom calldata _permit, bytes calldata _signature)
-        external
-        payable
-        returns (uint256 steth)
-    {
+    function wethToStETH(
+        address _recipient,
+        ISignatureTransfer.PermitTransferFrom calldata _permit,
+        bytes calldata _signature
+    ) external payable returns (uint256 steth) {
         require(_permit.permitted.token == address(WETH));
 
         permit2.permitTransferFrom(
@@ -90,10 +90,11 @@ contract Lido is Pino {
     /// @param _recipient The destination address that will receive WST_ETH
     /// @param _permit Permit2 PermitTransferFrom struct
     /// @param _signature Signature, used by Permit2
-    function wethToWstETH(address _recipient, ISignatureTransfer.PermitTransferFrom calldata _permit, bytes calldata _signature)
-        external
-        payable
-    {
+    function wethToWstETH(
+        address _recipient,
+        ISignatureTransfer.PermitTransferFrom calldata _permit,
+        bytes calldata _signature
+    ) external payable {
         require(_permit.permitted.token == address(WETH));
 
         permit2.permitTransferFrom(
@@ -112,20 +113,14 @@ contract Lido is Pino {
     /// @notice Wraps ST_ETH to WST_ETH and transfers it to msg.sender
     /// @param _amount Amount to convert to WST_ETH
     /// @param _recipient The destination address that will receive WST_ETH
-    function stETHToWstETH(uint256 _amount, address _recipient)
-        external
-        payable
-    {
+    function stETHToWstETH(uint256 _amount, address _recipient) external payable {
         WstETH.wrap(_amount);
 
         sweepToken(address(WstETH), _recipient);
     }
 
     /// @notice Unwraps WST_ETH to ST_ETH and transfers it to the recipient
-    function wstETHToStETH(uint256 _amount, address _recipient)
-        external
-        payable
-    {
+    function wstETHToStETH(uint256 _amount, address _recipient) external payable {
         WstETH.unwrap(_amount);
 
         sweepStETH(_recipient);

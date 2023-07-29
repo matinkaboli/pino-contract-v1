@@ -50,9 +50,7 @@ contract Balancer is IBalancer, Pino {
     }
 
     /// @inheritdoc IBalancer
-    function swap(
-        IBalancer.SwapParams calldata _params
-    ) external payable {
+    function swap(IBalancer.SwapParams calldata _params) external payable {
         IVault.SingleSwap memory singleSwap = IVault.SingleSwap({
             kind: _params.kind,
             amount: _params.amount,
@@ -81,8 +79,6 @@ contract Balancer is IBalancer, Pino {
             recipient: payable(msg.sender)
         });
 
-        Vault.batchSwap(
-            _params.kind, _params.swaps, _params.assets, funds, _params.limits, block.timestamp
-        );
+        Vault.batchSwap(_params.kind, _params.swaps, _params.assets, funds, _params.limits, block.timestamp);
     }
 }
