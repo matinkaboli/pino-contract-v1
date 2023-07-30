@@ -1,33 +1,38 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
-import "../Proxy.sol";
+import "../Pino.sol";
 import "../interfaces/IWETH9.sol";
+import "../interfaces/Compound/IComet.sol";
+import "../interfaces/Compound/ICToken.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-interface ICToken is IERC20 {
-    function mint() external payable;
-    function mint(uint256 mintAmount) external returns (uint256);
-    function redeem(uint256 redeemTokens) external returns (uint256);
-    function balanceOfUnderlying(address account) external returns (uint256);
-}
-
 /// @title Compound V2 proxy
-/// @author Matin Kaboli
-/// @notice Supplies and Withdraws ERC20 and ETH tokens and helps with WETH wrapping
+/// @author Pino Development Team
+/// @notice Calls Compound V2/V3 functions using permit2
 /// @dev This contract uses Permit2
-contract Compound is Proxy {
+contract Compound is Pino {
     using SafeERC20 for IERC20;
+
+    IComet public immutable Comet;
 
     /// @notice Receives tokens and cTokens and approves them
     /// @param _permit2 Address of Permit2 contract
+    /// @param _weth Address of WETH9 contract
+    /// @param _comet Address of CompoundV3 (comet) contract
     /// @param _tokens List of ERC20 tokens used in Compound V2
     /// @param _cTokens List of ERC20 cTokens used in Compound V2
-    constructor(Permit2 _permit2, IWETH9 _weth, IERC20[] memory _tokens, address[] memory _cTokens)
-        Proxy(_permit2, _weth)
+    /// @dev Do not put WETH address among _tokens
+    constructor(Permit2 _permit2, IWETH9 _weth, IComet _comet, IERC20[] memory _tokens, address[] memory _cTokens)
+        Pino(_permit2, _weth)
     {
+        Comet = _comet;
+
+        _weth.approve(address(_comet), type(uint256).max);
+
         for (uint8 i = 0; i < _tokens.length;) {
             _tokens[i].safeApprove(_cTokens[i], type(uint256).max);
+            _tokens[i].safeApprove(address(_comet), type(uint256).max);
 
             unchecked {
                 ++i;
@@ -36,89 +41,48 @@ contract Compound is Proxy {
     }
 
     /// @notice Supplies an ERC20 asset to Compound
-    /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
-    /// @param _signature Signature, used by Permit2
-    function supply(ISignatureTransfer.PermitTransferFrom calldata _permit, bytes calldata _signature, ICToken _cToken)
-        public
-        payable
-    {
-        permit2.permitTransferFrom(
-            _permit,
-            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
-            msg.sender,
-            _signature
-        );
+    /// @notice _cToken Address of the cToken
+    function depositV2(uint256 _amount, ICToken _cToken, address _recipient) public payable {
+        _cToken.mint(_amount);
 
-        uint256 balanceBefore = _cToken.balanceOf(address(this));
-
-        _cToken.mint(_permit.permitted.amount);
-
-        uint256 balanceAfter = _cToken.balanceOf(address(this));
-
-        _cToken.transfer(msg.sender, balanceAfter - balanceBefore);
+        sweepToken(address(_cToken), _recipient);
     }
 
     /// @notice Supplies ETH to Compound
     /// @param _cToken address of cETH
-    /// @param _fee Fee of the protocol (could be 0)
-    function supplyETH(ICToken _cToken, uint256 _fee) public payable {
-        require(msg.value > 0 && msg.value > _fee);
+    /// @param _proxyFee Fee of the proxy contract
+    /// @param _recipient The destination address that will receive cTokens
+    function depositETHV2(ICToken _cToken, uint256 _proxyFee, address _recipient) public payable ethUnlocked {
+        _cToken.mint{value: msg.value - _proxyFee}();
 
-        uint256 ethPrice = msg.value - _fee;
-
-        uint256 balanceBefore = _cToken.balanceOf(address(this));
-
-        _cToken.mint{value: ethPrice}();
-
-        uint256 balanceAfter = _cToken.balanceOf(address(this));
-
-        _cToken.transfer(msg.sender, balanceAfter - balanceBefore);
+        sweepToken(address(_cToken), _recipient);
     }
 
-    /// @notice Withdraws an ERC20 token and transfers it to msg.sender
-    /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
-    /// @param _signature Signature, used by Permit2
-    /// @param _token received ERC20 token
-    function withdraw(ISignatureTransfer.PermitTransferFrom calldata _permit, bytes calldata _signature, ICToken _token)
-        public
-        payable
-    {
-        permit2.permitTransferFrom(
-            _permit,
-            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
-            msg.sender,
-            _signature
-        );
+    /// @notice Converts cToken to token and transfers it to the recipient
+    /// @param _cToken Address of the cToken
+    /// @param _amount Amount to withdraw
+    /// @param _recipient The destination that will receive the underlying token
+    function withdrawV2(ICToken _cToken, uint256 _amount, address _recipient) public payable {
+        _cToken.redeem(_amount);
 
-        uint256 balanceBefore = _token.balanceOf(address(this));
-
-        ICToken(_permit.permitted.token).redeem(_permit.permitted.amount);
-
-        uint256 balanceAfter = _token.balanceOf(address(this));
-
-        _token.transfer(msg.sender, balanceAfter - balanceBefore);
+        sweepToken(_cToken.underlying(), _recipient);
     }
 
-    /// @notice Received cETH and unwraps it to ETH and transfers it to msg.sender
-    /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
-    /// @param _signature Signature, used by Permit2
-    function withdrawETH(ISignatureTransfer.PermitTransferFrom calldata _permit, bytes calldata _signature)
-        public
-        payable
-    {
-        permit2.permitTransferFrom(
-            _permit,
-            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
-            msg.sender,
-            _signature
-        );
-
+    /// @notice Receives cEther and unwraps it to ETH and transfers it to the recipient
+    /// @param _cToken Address of the cToken
+    /// @param _amount Amount to withdraw
+    /// @param _recipient The destination address that will receive ETH
+    function withdrawETHV2(ICToken _cToken, uint256 _amount, address _recipient) public payable ethUnlocked {
         uint256 balanceBefore = address(this).balance;
 
-        ICToken(_permit.permitted.token).redeem(_permit.permitted.amount);
+        _cToken.redeem(_amount);
 
         uint256 balanceAfter = address(this).balance;
 
-        _sendETH(msg.sender, balanceAfter - balanceBefore);
+        _sendETH(_recipient, balanceAfter - balanceBefore);
+    }
+
+    function depositV3(address _recipient, uint256 _amount, address _token) {
+        Comet.supplyTo(_recipient, _token, _amount);
     }
 }
