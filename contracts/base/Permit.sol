@@ -2,8 +2,10 @@
 pragma solidity 0.8.18;
 
 import "../interfaces/IWETH9.sol";
-import "../interfaces/Permit2.sol";
+import "../interfaces/Permit2/Permit2.sol";
 
+/// @title Permit2 SignatureTransfer functions
+/// @author Pino Development Team
 contract Permit {
     IWETH9 public immutable WETH;
     Permit2 public immutable permit2;

@@ -2,8 +2,9 @@
 pragma solidity 0.8.18;
 pragma abicoder v2;
 
-/// @title IAave proxy contract
-/// @author Matin Kaboli
+/// @title Aave proxy contract interface
+/// @author Pino Development Team
+/// @notice Deposits and Withdraws tokens to the lending pool
 interface IAave {
     struct DepositParams {
         address token;

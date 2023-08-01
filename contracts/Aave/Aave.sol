@@ -11,7 +11,7 @@ import "../interfaces/Aave/ILendingPoolV3.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title Aave proxy contract
-/// @author Matin Kaboli
+/// @author Pino Development Team
 /// @notice Deposits and Withdraws tokens to the lending pool
 /// @dev This contract uses Permit2
 contract Aave is IAave, Pino {

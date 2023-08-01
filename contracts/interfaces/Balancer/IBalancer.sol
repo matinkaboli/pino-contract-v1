@@ -4,6 +4,10 @@ pragma abicoder v2;
 
 import "./IVault.sol";
 
+/// @title Balancer proxy contract
+/// @author Pino Development Team
+/// @notice Deposits and Withdraws ERC20/ETH tokens to the vault and handles swap functions
+/// @dev This contract uses Permit2
 interface IBalancer {
     struct JoinPoolParams {
         bytes32 poolId;

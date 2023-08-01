@@ -4,9 +4,10 @@ import { constants } from 'ethers';
 import { PERMIT2_ADDRESS } from '@uniswap/permit2-sdk';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
-import { WETH, WST_ETH, ST_ETH } from '../utils/addresses';
+
 import { signer } from '../utils/helpers';
 import { IERC20, IWETH9 } from '../../typechain-types';
+import { WETH, WST_ETH, ST_ETH } from '../utils/addresses';
 
 describe('Lido', () => {
   let weth: IWETH9;
@@ -68,13 +69,16 @@ describe('Lido', () => {
     it('Should convert ETH to wstETH', async () => {
       const { contract } = await loadFixture(deploy);
 
+      const proxyFee = 0n;
       const amount = 1n * 10n ** 18n;
 
       const wstBalanceBefore = await wsteth.balanceOf(
         account.address,
       );
 
-      await contract.ethToWstETH(0, { value: amount });
+      await contract.ethToWstETH(proxyFee, account.address, {
+        value: amount + proxyFee,
+      });
 
       const wstBalanceAfter = await wsteth.balanceOf(account.address);
 
@@ -84,13 +88,16 @@ describe('Lido', () => {
     it('Should convert ETH to wstETH with proxy fee', async () => {
       const { contract } = await loadFixture(deploy);
 
+      const proxyFee = 10000n;
       const amount = 1n * 10n ** 18n;
 
       const wstBalanceBefore = await wsteth.balanceOf(
         account.address,
       );
 
-      await contract.ethToWstETH(10000, { value: amount });
+      await contract.ethToWstETH(proxyFee, account.address, {
+        value: amount + proxyFee,
+      });
 
       const wstBalanceAfter = await wsteth.balanceOf(account.address);
 
@@ -100,13 +107,16 @@ describe('Lido', () => {
     it('Should convert ETH to stETH', async () => {
       const { contract } = await loadFixture(deploy);
 
+      const proxyFee = 0n;
       const amount = 1n * 10n ** 18n;
 
       const stethBalanceBefore = await steth.balanceOf(
         account.address,
       );
 
-      await contract.ethToStETH(0, { value: amount });
+      await contract.ethToStETH(proxyFee, account.address, {
+        value: amount + proxyFee,
+      });
 
       const stethBalanceAfter = await steth.balanceOf(
         account.address,
@@ -118,13 +128,16 @@ describe('Lido', () => {
     it('Should convert ETH to stETH with proxy fee', async () => {
       const { contract } = await loadFixture(deploy);
 
+      const proxyFee = 5000n;
       const amount = 1n * 10n ** 18n;
 
       const stethBalanceBefore = await steth.balanceOf(
         account.address,
       );
 
-      await contract.ethToStETH(5000, { value: amount });
+      await contract.ethToStETH(proxyFee, account.address, {
+        value: amount + proxyFee,
+      });
 
       const stethBalanceAfter = await steth.balanceOf(
         account.address,
@@ -149,7 +162,7 @@ describe('Lido', () => {
         account.address,
       );
 
-      await contract.wethToStETH(permit, signature);
+      await contract.wethToStETH(account.address, permit, signature);
 
       const stethBalanceAfter = await steth.balanceOf(
         account.address,
@@ -161,6 +174,7 @@ describe('Lido', () => {
     it('Should convert WETH to stETH with proxy fee', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const proxyFee = 200n;
       const amount = 1n * 10n ** 18n;
 
       const { permit, signature } = await sign(
@@ -172,7 +186,9 @@ describe('Lido', () => {
         account.address,
       );
 
-      await contract.wethToStETH(permit, signature, { value: 200 });
+      await contract.wethToStETH(account.address, permit, signature, {
+        value: proxyFee,
+      });
 
       const stethBalanceAfter = await steth.balanceOf(
         account.address,
@@ -184,6 +200,7 @@ describe('Lido', () => {
     it('Should convert WETH to wstETH', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const proxyFee = 200n;
       const amount = 1n * 10n ** 18n;
 
       const { permit, signature } = await sign(
@@ -195,7 +212,12 @@ describe('Lido', () => {
         account.address,
       );
 
-      await contract.wethToWstETH(permit, signature, { value: 200 });
+      await contract.wethToWstETH(
+        account.address,
+        permit,
+        signature,
+        { value: proxyFee },
+      );
 
       const wstethBalanceAfter = await wsteth.balanceOf(
         account.address,
@@ -207,6 +229,7 @@ describe('Lido', () => {
     it('Should convert WETH to wstETH with proxy fee', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const proxyFee = 200n;
       const amount = 1n * 10n ** 18n;
 
       const { permit, signature } = await sign(
@@ -218,7 +241,12 @@ describe('Lido', () => {
         account.address,
       );
 
-      await contract.wethToWstETH(permit, signature, { value: 200 });
+      await contract.wethToWstETH(
+        account.address,
+        permit,
+        signature,
+        { value: proxyFee },
+      );
 
       const wstethBalanceAfter = await wsteth.balanceOf(
         account.address,
@@ -232,9 +260,12 @@ describe('Lido', () => {
     it('Should convert ST_ETH to WST_ETH', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const proxyFee = 0n;
       const amount = 1n * 10n ** 18n;
 
-      await contract.ethToStETH(0, { value: amount });
+      await contract.ethToStETH(proxyFee, account.address, {
+        value: amount + proxyFee,
+      });
 
       const { permit, signature } = await sign(
         { token: ST_ETH, amount },
@@ -245,7 +276,17 @@ describe('Lido', () => {
         account.address,
       );
 
-      await contract.stETHToWstETH(permit, signature);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const wrapTx = await contract.populateTransaction.stETHToWstETH(
+        amount,
+        account.address,
+      );
+
+      await contract.multicall([permitTx.data, wrapTx.data]);
 
       const wstethBalanceAfter = await wsteth.balanceOf(
         account.address,
@@ -257,9 +298,12 @@ describe('Lido', () => {
     it('Should convert ST_ETH to WST_ETH with proxy fee', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const proxyFee = 100n;
       const amount = 1n * 10n ** 18n;
 
-      await contract.ethToStETH(0, { value: amount });
+      await contract.ethToStETH(proxyFee, account.address, {
+        value: amount + proxyFee,
+      });
 
       const { permit, signature } = await sign(
         { token: ST_ETH, amount },
@@ -270,7 +314,19 @@ describe('Lido', () => {
         account.address,
       );
 
-      await contract.stETHToWstETH(permit, signature, { value: 100 });
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const wrapTx = await contract.populateTransaction.stETHToWstETH(
+        amount,
+        account.address,
+      );
+
+      await contract.multicall([permitTx.data, wrapTx.data], {
+        value: proxyFee,
+      });
 
       const wstethBalanceAfter = await wsteth.balanceOf(
         account.address,
@@ -284,9 +340,12 @@ describe('Lido', () => {
     it('Should convert WST_ETH to ST_ETH', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const proxyFee = 0n;
       const amount = 1n * 10n ** 18n;
 
-      await contract.ethToWstETH(0, { value: amount });
+      await contract.ethToWstETH(proxyFee, account.address, {
+        value: amount + proxyFee,
+      });
 
       const wstBalance = await wsteth.balanceOf(account.address);
 
@@ -299,7 +358,17 @@ describe('Lido', () => {
         account.address,
       );
 
-      await contract.wstETHToStETH(permit, signature);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const wrapTx = await contract.populateTransaction.wstETHToStETH(
+        wstBalance,
+        account.address,
+      );
+
+      await contract.multicall([permitTx.data, wrapTx.data]);
 
       const stethBalanceAfter = await steth.balanceOf(
         account.address,
@@ -311,9 +380,12 @@ describe('Lido', () => {
     it('Should convert WST_ETH to ST_ETH with proxy fee', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const proxyFee = 0n;
       const amount = 1n * 10n ** 18n;
 
-      await contract.ethToWstETH(0, { value: amount });
+      await contract.ethToWstETH(proxyFee, account.address, {
+        value: amount + proxyFee,
+      });
 
       const wstBalance = await wsteth.balanceOf(account.address);
 
@@ -326,7 +398,20 @@ describe('Lido', () => {
         account.address,
       );
 
-      await contract.wstETHToStETH(permit, signature, { value: 200 });
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const wrapTx = await contract.populateTransaction.wstETHToStETH(
+        wstBalance,
+        account.address,
+      );
+
+      await contract.multicall([permitTx.data, wrapTx.data], {
+        value: 200,
+      });
 
       const stethBalanceAfter = await steth.balanceOf(
         account.address,

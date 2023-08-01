@@ -5,6 +5,8 @@ import "./Payments.sol";
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+/// @title Handles owner functions
+/// @author Pino Development Team
 contract Owner is Ownable, Payments {
     /// @notice Proxy contract constructor, sets permit2 and weth addresses
     /// @param _permit2 Permit2 contract address

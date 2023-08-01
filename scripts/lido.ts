@@ -1,7 +1,7 @@
 import { ethers } from 'hardhat';
 
-import mainnetArguments from '../arguments/mainnet/balancer';
-import arbitrumArguments from '../arguments/arbitrum/balancer';
+import mainnetArguments from '../arguments/mainnet/lido';
+import arbitrumArguments from '../arguments/arbitrum/lido';
 
 async function main() {
   const { HARDHAT_NETWORK } = process.env;
@@ -24,13 +24,13 @@ async function main() {
     (await account.getBalance()).toString(),
   );
 
-  const Balancer = await ethers.getContractFactory('Balancer');
+  const Lido = await ethers.getContractFactory('Lido');
 
-  const balancer = await Balancer.connect(account).deploy(...args);
+  const lido = await Lido.connect(account).deploy(...args);
 
-  await balancer.deployed();
+  await lido.deployed();
 
-  console.log(`Aave proxy contract deployed to ${balancer.address}`);
+  console.log(`Lido proxy contract deployed to ${lido.address}`);
 }
 
 main().catch((error) => {

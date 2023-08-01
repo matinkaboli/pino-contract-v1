@@ -3,6 +3,8 @@ pragma solidity 0.8.18;
 
 import "./EthLocker.sol";
 
+/// @title Handles multicall function
+/// @author Pino Development Team
 contract Multicall is EthLocker {
     /// @notice Multiple calls on proxy functions
     /// @param _data The destination address

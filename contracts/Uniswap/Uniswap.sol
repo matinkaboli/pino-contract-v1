@@ -57,7 +57,7 @@ import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 
 /// @title UniswapV3 proxy contract
-/// @author Matin Kaboli
+/// @author Pino Development Team
 /// @notice Mints and Increases liquidity and swaps tokens
 /// @dev This contract uses Permit2
 contract Uniswap is IUniswap, Pino {

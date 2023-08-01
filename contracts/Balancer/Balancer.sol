@@ -8,7 +8,7 @@ import "../interfaces/Balancer/IVault.sol";
 import "../interfaces/Balancer/IBalancer.sol";
 
 /// @title Balancer proxy contract
-/// @author Matin Kaboli
+/// @author Pino Development Team
 /// @notice Deposits and Withdraws ERC20/ETH tokens to the vault and handles swap functions
 /// @dev This contract uses Permit2
 contract Balancer is IBalancer, Pino {
@@ -50,9 +50,7 @@ contract Balancer is IBalancer, Pino {
     }
 
     /// @inheritdoc IBalancer
-    function swap(
-        IBalancer.SwapParams calldata _params
-    ) external payable {
+    function swap(IBalancer.SwapParams calldata _params) external payable {
         IVault.SingleSwap memory singleSwap = IVault.SingleSwap({
             kind: _params.kind,
             amount: _params.amount,
@@ -81,8 +79,6 @@ contract Balancer is IBalancer, Pino {
             recipient: payable(msg.sender)
         });
 
-        Vault.batchSwap(
-            _params.kind, _params.swaps, _params.assets, funds, _params.limits, block.timestamp
-        );
+        Vault.batchSwap(_params.kind, _params.swaps, _params.assets, funds, _params.limits, block.timestamp);
     }
 }

@@ -5,10 +5,12 @@ import "./Permit.sol";
 import "./Errors.sol";
 import "./EthLocker.sol";
 import "../helpers/ErrorCodes.sol";
-import "../interfaces/Permit2.sol";
+import "../interfaces/Permit2/Permit2.sol";
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+/// @title Handles custom payment functions
+/// @author Pino Development Team
 contract Payments is Errors, Permit, EthLocker {
     using SafeERC20 for IERC20;
 
