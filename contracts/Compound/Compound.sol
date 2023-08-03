@@ -26,9 +26,14 @@ contract Compound is Pino {
     /// @param _tokens List of ERC20 tokens used in Compound V2
     /// @param _cTokens List of ERC20 cTokens used in Compound V2
     /// @dev Do not put WETH and cEther addresses among _tokens or _cTokens
-    constructor(Permit2 _permit2, IWETH9 _weth, IComet _comet, ICEther _cEther, IERC20[] memory _tokens, address[] memory _cTokens)
-        Pino(_permit2, _weth)
-    {
+    constructor(
+        Permit2 _permit2,
+        IWETH9 _weth,
+        IComet _comet,
+        ICEther _cEther,
+        IERC20[] memory _tokens,
+        address[] memory _cTokens
+    ) Pino(_permit2, _weth) {
         Comet = _comet;
         CEther = _cEther;
 
