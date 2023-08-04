@@ -1,7 +1,7 @@
 import { ethers } from 'hardhat';
 
-import mainnetArguments from '../arguments/mainnet/aave';
-import arbitrumArguments from '../arguments/arbitrum/aave';
+import mainnetArguments from '../arguments/mainnet/compound';
+import arbitrumArguments from '../arguments/arbitrum/compound';
 
 async function main() {
   const { HARDHAT_NETWORK } = process.env;
