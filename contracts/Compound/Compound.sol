@@ -75,6 +75,24 @@ contract Compound is Pino {
         sweepToken(address(CEther), _recipient);
     }
 
+    /// @notice Deposits WETH, converts it to ETH and mints CEther
+    /// @param _permit permit structure to receive WETH
+    /// @param _signature Signature used by permit2
+    /// @param _recipient The destination address that will receive CEther
+    function depositWETHV2(
+        ISignatureTransfer.PermitTransferFrom calldata _permit,
+        bytes calldata _signature,
+        address _recipient
+    ) external payable {
+        permitTransferFrom(_permit, _signature);
+
+        WETH.withdraw(_permit.permitted.amount);
+
+        CEther.mint{value: _permit.permitted.amount}();
+
+        sweepToken(address(CEther), _recipient);
+    }
+
     /// @notice Deposits cTokens back to the Compound protocol and receives underlying ERC20 tokens and transfers it to the recipient
     /// @param _amount Amount to withdraw
     /// @param _cToken Address of the cToken
@@ -101,6 +119,24 @@ contract Compound is Pino {
         _sendETH(_recipient, balanceAfter - balanceBefore);
     }
 
+    /// @notice Deposits CEther back the the Compound protocol and receives ETH and transfers WETH to the recipient
+    /// @param _amount Amount to withdraw
+    /// @param _recipient The destination address that will receive WETH
+    function withdrawWETHV2(uint256 _amount, address _recipient) external payable ethUnlocked {
+        uint256 balanceBefore = address(this).balance;
+
+        // Contract will receive ETH and the balance is updated
+        CEther.redeem(_amount);
+
+        uint256 balanceAfter = address(this).balance;
+
+        // Convert ETH to WETH
+        WETH.deposit{value: balanceAfter - balanceBefore}();
+
+        // Send WETH to the recipient
+        sweepToken(address(WETH), _recipient);
+    }
+
     /// @notice Repays a borrowed token on behalf of the recipient
     /// @param _cToken Address of the cToken
     /// @param _amount Amount to repay
@@ -114,6 +150,25 @@ contract Compound is Pino {
     /// @param _proxyFee Fee of the proxy contract
     function repayETHV2(address _recipient, uint96 _proxyFee) external payable ethUnlocked {
         CEther.repayBorrowBehalf{value: msg.value - _proxyFee}(_recipient);
+    }
+
+    /// @notice Repays ETH on behalf of the recipient but receives WETH from the caller
+    /// @param _permit The permit structure for PERMIT2 to receive WETH
+    /// @param _signature The signature used by PERMIT2 contract
+    /// @param _recipient The address of the recipient
+    function repayWETHV2(
+        ISignatureTransfer.PermitTransferFrom calldata _permit,
+        bytes calldata _signature,
+        address _recipient
+    ) external payable ethUnlocked {
+        // Transfer WETH to the contract
+        permitTransferFrom(_permit, _signature);
+
+        // Unwrap WETH to ETH
+        WETH.withdraw(_permit.permitted.amount);
+
+        // Send ETH to CEther
+        CEther.repayBorrowBehalf{value: _permit.permitted.amount}(_recipient);
     }
 
     /// @notice Deposits ERC20 tokens to the Compound protocol on behalf of the recipient
