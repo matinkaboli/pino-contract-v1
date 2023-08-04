@@ -6,13 +6,14 @@ import "../interfaces/IWETH9.sol";
 import "../interfaces/Compound/IComet.sol";
 import "../interfaces/Compound/ICToken.sol";
 import "../interfaces/Compound/ICEther.sol";
+import "../interfaces/Compound/ICompound.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// @title Compound V2 proxy
 /// @author Pino Development Team
 /// @notice Calls Compound V2/V3 functions
 /// @dev This contract uses Permit2
-contract Compound is Pino {
+contract Compound is ICompound, Pino {
     using SafeERC20 for IERC20;
 
     IComet public immutable Comet;
