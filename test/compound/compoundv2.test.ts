@@ -303,6 +303,37 @@ describe('Compound V2', () => {
       );
     });
 
+    it('Should supply WETH', async () => {
+      const { contract, sign } = await loadFixture(deploy);
+
+      const amount = 1n * 10n ** 18n;
+
+      const { permit, signature } = await sign(
+        {
+          token: WETH,
+          amount,
+        },
+        contract.address,
+      );
+
+      const cEtherBalanceBefore = await cEth.balanceOf(
+        account.address,
+      );
+
+      const depositTx =
+        await contract.populateTransaction.depositWETHV2(
+          permit,
+          signature,
+          account.address,
+        );
+
+      await contract.multicall([depositTx.data]);
+
+      expect(await cEth.balanceOf(account.address)).gt(
+        cEtherBalanceBefore,
+      );
+    });
+
     it('Should supply AAVE', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
@@ -437,7 +468,7 @@ describe('Compound V2', () => {
       );
     });
 
-    it('Should supply ETH and withdraw', async () => {
+    it('Should supply ETH and withdraw ETH', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
       const proxyFee = 3000n;
@@ -486,6 +517,56 @@ describe('Compound V2', () => {
       expect(await account.getBalance()).to.gt(
         balanceBefore.add(minimumAmount),
       );
+    });
+
+    it('Should supply ETH and withdraw WETH', async () => {
+      const { contract, sign } = await loadFixture(deploy);
+
+      const proxyFee = 3000n;
+      const amount = 10n * 10n ** 17n;
+
+      const cEthBalanceBefore = await cEth.balanceOf(account.address);
+
+      const depositTx =
+        await contract.populateTransaction.depositETHV2(
+          account.address,
+          proxyFee,
+        );
+
+      await contract.multicall([depositTx.data], {
+        value: amount + proxyFee,
+      });
+
+      const cEthBalanceAfter = await cEth.balanceOf(account.address);
+
+      expect(cEthBalanceAfter).gt(cEthBalanceBefore);
+
+      const { permit, signature } = await sign(
+        {
+          token: C_ETH,
+          amount: cEthBalanceAfter,
+        },
+        contract.address,
+      );
+
+      const wethBalanceBefore = await weth.balanceOf(account.address);
+
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const withdrawTx =
+        await contract.populateTransaction.withdrawWETHV2(
+          cEthBalanceAfter,
+          account.address,
+        );
+
+      await contract.multicall([permitTx.data, withdrawTx.data]);
+
+      const wethBalanceAfter = await weth.balanceOf(account.address);
+
+      expect(wethBalanceAfter).to.gt(wethBalanceBefore);
     });
 
     it('Should supply DAI and withdraw it', async () => {

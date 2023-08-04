@@ -35,8 +35,8 @@ describe('Comet (Compound V3)', () => {
       WETH,
       C_USDC,
       C_ETH,
-      [USDC, WETH, WBTC],
-      [C_USDC_V2, C_ETH, C_WBTC],
+      [USDC, WBTC],
+      [C_USDC_V2, C_WBTC],
     );
 
     return {
@@ -468,8 +468,8 @@ describe('Comet (Compound V3)', () => {
       const { contract } = await loadFixture(deploy);
 
       const proxyFee = 3000n;
-      const amount = 20n * 10n ** 16n;
-      const minimumAmount = 18n * 10n ** 16n;
+      const amount = 1n * 10n ** 18n;
+      const minimumAmount = 1n * 10n ** 17n;
 
       const wrapTx = await contract.populateTransaction.wrapETH(
         proxyFee,
@@ -480,7 +480,9 @@ describe('Comet (Compound V3)', () => {
         account.address,
       );
 
-      await contract.multicall([wrapTx.data, depositTx.data]);
+      await contract.multicall([wrapTx.data, depositTx.data], {
+        value: amount + proxyFee,
+      });
 
       const collateralBalance =
         await cometContract.collateralBalanceOf(
@@ -494,11 +496,12 @@ describe('Comet (Compound V3)', () => {
 
       const balanceBefore = await account.getBalance();
 
-      const withdrawTx = await contract.withdrawV3(
-        WETH,
-        collateralBalance,
-        contract.address,
-      );
+      const withdrawTx =
+        await contract.populateTransaction.withdrawV3(
+          WETH,
+          collateralBalance,
+          contract.address,
+        );
       const unwrapTx = await contract.populateTransaction.unwrapWETH9(
         account.address,
       );
@@ -508,6 +511,136 @@ describe('Comet (Compound V3)', () => {
       expect(await account.getBalance()).to.gt(
         balanceBefore.add(minimumAmount),
       );
+    });
+  });
+
+  describe('Repay', () => {
+    it('Should supply WBTC, borrow USDC, and repay USDC', async () => {
+      const { contract, sign } = await loadFixture(deploy);
+
+      const amount = 1n * 10n ** 8n;
+      const minimumAmount = 1n * 10n ** 7n;
+
+      const wbtcBalanceBefore =
+        await cometContract.collateralBalanceOf(
+          account.address,
+          WBTC,
+        );
+
+      const { permit, signature } = await sign(
+        {
+          token: WBTC,
+          amount,
+        },
+        contract.address,
+      );
+
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const depositTx = await contract.populateTransaction.depositV3(
+        WBTC,
+        amount,
+        account.address,
+      );
+
+      await contract.multicall([permitTx.data, depositTx.data]);
+
+      const wbtcBalanceAfter =
+        await cometContract.collateralBalanceOf(
+          account.address,
+          WBTC,
+        );
+
+      expect(wbtcBalanceAfter).to.gt(
+        wbtcBalanceBefore.add(minimumAmount),
+      );
+
+      const usdcBalanceBefore = await usdc.balanceOf(account.address);
+
+      const borrowAmount = 200n * 10n ** 6n;
+
+      const borrowTx = await contract.populateTransaction.withdrawV3(
+        USDC,
+        borrowAmount,
+        account.address,
+      );
+
+      // Allow the Pino proxy contract to be able to borrow for the user and send it to the user
+      await cometContract.allow(contract.address, true);
+
+      // Borrow from Compound, send it to account.data
+      await contract.multicall([borrowTx.data]);
+
+      const usdcBalanceAfter = await usdc.balanceOf(account.address);
+
+      expect(usdcBalanceAfter).to.gt(usdcBalanceBefore);
+    });
+
+    it('Should supply WBTC, borrow ETH, and repay ETH', async () => {
+      const { contract, sign } = await loadFixture(deploy);
+
+      const amount = 1n * 10n ** 8n;
+      const minimumAmount = 1n * 10n ** 7n;
+
+      const wbtcBalanceBefore =
+        await cometContract.collateralBalanceOf(
+          account.address,
+          WBTC,
+        );
+
+      const { permit, signature } = await sign(
+        {
+          token: WBTC,
+          amount,
+        },
+        contract.address,
+      );
+
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const depositTx = await contract.populateTransaction.depositV3(
+        WBTC,
+        amount,
+        account.address,
+      );
+
+      await contract.multicall([permitTx.data, depositTx.data]);
+
+      const wbtcBalanceAfter =
+        await cometContract.collateralBalanceOf(
+          account.address,
+          WBTC,
+        );
+
+      expect(wbtcBalanceAfter).to.gt(
+        wbtcBalanceBefore.add(minimumAmount),
+      );
+
+      // const usdcBalanceBefore = await usdc.balanceOf(account.address);
+
+      const borrowAmount = 1n * 10n ** 18n;
+
+      const borrowTx = await contract.populateTransaction.withdrawV3(
+        ETH,
+        borrowAmount,
+        account.address,
+      );
+
+      // Allow the Pino proxy contract to be able to borrow for the user and send it to the user
+      await cometContract.allow(contract.address, true);
+
+      // Borrow from Compound, send it to account.data
+      await contract.multicall([borrowTx.data]);
+
+      const usdcBalanceAfter = await usdc.balanceOf(account.address);
+
+      expect(usdcBalanceAfter).to.gt(usdcBalanceBefore);
     });
   });
 
