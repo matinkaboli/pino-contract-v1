@@ -69,16 +69,8 @@ contract Lido is Pino {
         address _recipient,
         ISignatureTransfer.PermitTransferFrom calldata _permit,
         bytes calldata _signature
-    ) external payable returns (uint256 steth) {
-        require(_permit.permitted.token == address(WETH));
-
-        permit2.permitTransferFrom(
-            _permit,
-            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
-            msg.sender,
-            _signature
-        );
-
+    ) external payable ethUnlocked returns (uint256 steth) {
+        permitTransferFrom(_permit, _signature);
         WETH.withdraw(_permit.permitted.amount);
 
         steth = StETH.submit{value: _permit.permitted.amount}(msg.sender);
@@ -95,15 +87,7 @@ contract Lido is Pino {
         ISignatureTransfer.PermitTransferFrom calldata _permit,
         bytes calldata _signature
     ) external payable {
-        require(_permit.permitted.token == address(WETH));
-
-        permit2.permitTransferFrom(
-            _permit,
-            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
-            msg.sender,
-            _signature
-        );
-
+        permitTransferFrom(_permit, _signature);
         WETH.withdraw(_permit.permitted.amount);
 
         _sendETH(address(WstETH), _permit.permitted.amount);

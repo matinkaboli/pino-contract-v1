@@ -4,7 +4,12 @@ import { constants } from 'ethers';
 import { PERMIT2_ADDRESS } from '@uniswap/permit2-sdk';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
-import { ICToken, IERC20, IWETH9 } from '../../typechain-types';
+import {
+  IComptroller,
+  ICToken,
+  IERC20,
+  IWETH9,
+} from '../../typechain-types';
 import {
   DAI,
   USDC,
@@ -32,8 +37,11 @@ import {
 import { impersonate, signer } from '../utils/helpers';
 
 const WHALE = '0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8';
-const WBTC_WHALE = '0x845cbcb8230197f733b59cfe1795f282786f212c';
-const AAVE_WHALE = '0x26a78d5b6d7a7aceedd1e6ee3229b372a624d8b7';
+const WBTC_WHALE = '0x0D0707963952f2fBA59dD06f2b425ace40b492Fe';
+const AAVE_WHALE = '0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8';
+const COMPTROLLER = '0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B';
+
+const COMET = '0xc3d688B66703497DAA19211EEdff47f25384cdc3';
 
 describe('Compound V2', () => {
   let dai: IERC20;
@@ -47,18 +55,20 @@ describe('Compound V2', () => {
   let cAave: ICToken;
   let cUsdc: ICToken;
   let cUsdt: ICToken;
+  let cWbtc: ICToken;
+  let comptroller: IComptroller;
   let account: SignerWithAddress;
 
   const deploy = async () => {
     const Compound = await ethers.getContractFactory('Compound');
     const contract = await Compound.deploy(
       PERMIT2_ADDRESS,
-      [USDC, DAI],
-      [C_USDC_V2, C_DAI],
+      WETH,
+      COMET,
+      C_ETH,
+      [USDC],
+      [C_USDC_V2],
     );
-
-    await contract.approveToken(USDT, [C_USDT]);
-    await contract.approveToken(AAVE, [C_AAVE]);
 
     return { contract, sign: await signer(account) };
   };
@@ -79,12 +89,17 @@ describe('Compound V2', () => {
     cDai = await ethers.getContractAt('ICToken', C_DAI);
     cUsdt = await ethers.getContractAt('ICToken', C_USDT);
     cAave = await ethers.getContractAt('ICToken', C_AAVE);
+    cWbtc = await ethers.getContractAt('ICToken', C_WBTC);
     cUsdc = await ethers.getContractAt('ICToken', C_USDC_V2);
+    comptroller = await ethers.getContractAt(
+      'IComptroller',
+      COMPTROLLER,
+    );
 
     const ethAmount = 3n * 10n ** 18n;
     const usdAmount = 5000n * 10n ** 6n;
     const daiAmount = 5000n * 10n ** 18n;
-    const wbtcAmount = 5000n * 10n ** 8n;
+    const wbtcAmount = 100n * 10n ** 8n;
 
     await dai.connect(whale).transfer(account.address, daiAmount);
     await usdc.connect(whale).transfer(account.address, usdAmount);
@@ -115,18 +130,29 @@ describe('Compound V2', () => {
     await cDai.approve(PERMIT2_ADDRESS, constants.MaxUint256);
     await cEth.approve(PERMIT2_ADDRESS, constants.MaxUint256);
     await cUsdc.approve(PERMIT2_ADDRESS, constants.MaxUint256);
+    await cWbtc.approve(PERMIT2_ADDRESS, constants.MaxUint256);
   });
 
   describe('Deployment', () => {
     it('Should deploy with 0 tokens', async () => {
       const Compound = await ethers.getContractFactory('Compound');
-      await Compound.deploy(PERMIT2_ADDRESS, [], []);
+      await Compound.deploy(
+        PERMIT2_ADDRESS,
+        WETH,
+        COMET,
+        C_ETH,
+        [],
+        [],
+      );
     });
 
     it('Should deploy given some tokens', async () => {
       const Compound = await ethers.getContractFactory('Compound');
       await Compound.deploy(
         PERMIT2_ADDRESS,
+        WETH,
+        COMET,
+        C_ETH,
         [WBTC, USDC],
         [C_WBTC, C_USDC_V2],
       );
@@ -136,6 +162,9 @@ describe('Compound V2', () => {
       const Compound = await ethers.getContractFactory('Compound');
       await Compound.deploy(
         PERMIT2_ADDRESS,
+        WETH,
+        COMET,
+        C_ETH,
         [DAI, USDC, USDT, WBTC, BAT, UNI, LINK, COMP, USDP, AAVE],
         [
           C_DAI,
@@ -171,8 +200,19 @@ describe('Compound V2', () => {
         account.address,
       );
 
-      await contract.supply(permit, signature, C_USDC_V2);
-      // gasUsed: 314k
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const depositTx = await contract.populateTransaction.depositV2(
+        amount,
+        C_USDC_V2,
+        account.address,
+      );
+
+      await contract.multicall([permitTx.data, depositTx.data]);
 
       expect(await cUsdc.balanceOf(account.address)).to.gt(
         cUsdcBalanceBefore,
@@ -196,8 +236,28 @@ describe('Compound V2', () => {
         account.address,
       );
 
-      await contract.supply(permit, signature, C_USDT);
-      // gasUsed: 311k
+      const approveTx =
+        await contract.populateTransaction.approveToken(USDT, [
+          C_USDT,
+        ]);
+
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+
+      const depositTx = await contract.populateTransaction.depositV2(
+        amount,
+        C_USDT,
+        account.address,
+      );
+
+      await contract.multicall([
+        approveTx.data,
+        permitTx.data,
+        depositTx.data,
+      ]);
 
       expect(await cUsdt.balanceOf(account.address)).to.gt(
         cUsdtBalanceBefore,
@@ -219,11 +279,58 @@ describe('Compound V2', () => {
 
       const cDaiBalanceBefore = await cDai.balanceOf(account.address);
 
-      await contract.supply(permit, signature, C_DAI);
-      // gasUsed: 302k
+      const approveTx =
+        await contract.populateTransaction.approveToken(DAI, [C_DAI]);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const depositTx = await contract.populateTransaction.depositV2(
+        amount,
+        C_DAI,
+        account.address,
+      );
+
+      await contract.multicall([
+        approveTx.data,
+        permitTx.data,
+        depositTx.data,
+      ]);
 
       expect(await cDai.balanceOf(account.address)).gt(
         cDaiBalanceBefore,
+      );
+    });
+
+    it('Should supply WETH', async () => {
+      const { contract, sign } = await loadFixture(deploy);
+
+      const amount = 1n * 10n ** 18n;
+
+      const { permit, signature } = await sign(
+        {
+          token: WETH,
+          amount,
+        },
+        contract.address,
+      );
+
+      const cEtherBalanceBefore = await cEth.balanceOf(
+        account.address,
+      );
+
+      const depositTx =
+        await contract.populateTransaction.depositWETHV2(
+          permit,
+          signature,
+          account.address,
+        );
+
+      await contract.multicall([depositTx.data]);
+
+      expect(await cEth.balanceOf(account.address)).gt(
+        cEtherBalanceBefore,
       );
     });
 
@@ -244,8 +351,26 @@ describe('Compound V2', () => {
         account.address,
       );
 
-      await contract.supply(permit, signature, C_AAVE);
-      // gasUsed: 570k
+      const approveTx =
+        await contract.populateTransaction.approveToken(AAVE, [
+          C_AAVE,
+        ]);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const depositTx = await contract.populateTransaction.depositV2(
+        amount,
+        C_AAVE,
+        account.address,
+      );
+
+      await contract.multicall([
+        approveTx.data,
+        permitTx.data,
+        depositTx.data,
+      ]);
 
       expect(await cAave.balanceOf(account.address)).gt(
         cAaveBalanceBefore,
@@ -255,15 +380,20 @@ describe('Compound V2', () => {
     it('Should supply ETH', async () => {
       const { contract } = await loadFixture(deploy);
 
-      const fee = 3000n;
+      const proxyFee = 3000n;
       const amount = 1n * 10n ** 18n;
 
       const cEthBalanceBefore = await cEth.balanceOf(account.address);
 
-      await contract.supplyETH(C_ETH, fee, {
-        value: amount + fee,
+      const depositTx =
+        await contract.populateTransaction.depositETHV2(
+          account.address,
+          proxyFee,
+        );
+
+      await contract.multicall([depositTx.data], {
+        value: amount + proxyFee,
       });
-      // gasUsed: 223k
 
       const cEthBalanceAfter = await cEth.balanceOf(account.address);
 
@@ -290,7 +420,18 @@ describe('Compound V2', () => {
         account.address,
       );
 
-      await contract.supply(permit1, signature1, C_USDC_V2);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit1,
+          signature1,
+        );
+      const depositTx = await contract.populateTransaction.depositV2(
+        amount,
+        C_USDC_V2,
+        account.address,
+      );
+
+      await contract.multicall([permitTx.data, depositTx.data]);
 
       const cUsdcBalanceAfter = await cUsdc.balanceOf(
         account.address,
@@ -308,27 +449,43 @@ describe('Compound V2', () => {
 
       const usdcBalanceBefore = await usdc.balanceOf(account.address);
 
-      await contract.withdraw(permit2, signature2, USDC);
-      // gasUsed: 270k
+      const permitTx2 =
+        await contract.populateTransaction.permitTransferFrom(
+          permit2,
+          signature2,
+        );
+      const withdrawTx =
+        await contract.populateTransaction.withdrawV2(
+          cUsdcBalanceAfter,
+          C_USDC_V2,
+          account.address,
+        );
+
+      await contract.multicall([permitTx2.data, withdrawTx.data]);
 
       expect(await usdc.balanceOf(account.address)).to.gt(
         usdcBalanceBefore.add(minimumAmount),
       );
     });
 
-    it('Should supply ETH and withdraw', async () => {
+    it('Should supply ETH and withdraw ETH', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
-      const fee = 3000n;
+      const proxyFee = 3000n;
       const amount = 10n * 10n ** 17n;
       const minimumAmount = 8n * 10n ** 17n;
 
       const cEthBalanceBefore = await cEth.balanceOf(account.address);
 
-      await contract.supplyETH(C_ETH, fee, {
-        value: amount + fee,
+      const depositTx =
+        await contract.populateTransaction.depositETHV2(
+          account.address,
+          proxyFee,
+        );
+
+      await contract.multicall([depositTx.data], {
+        value: amount + proxyFee,
       });
-      // gasUsed: 223k
 
       const cEthBalanceAfter = await cEth.balanceOf(account.address);
 
@@ -344,12 +501,72 @@ describe('Compound V2', () => {
 
       const balanceBefore = await account.getBalance();
 
-      await contract.withdrawETH(permit, signature);
-      // gasUsed: 201k
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const withdrawTx =
+        await contract.populateTransaction.withdrawETHV2(
+          cEthBalanceAfter,
+          account.address,
+        );
+
+      await contract.multicall([permitTx.data, withdrawTx.data]);
 
       expect(await account.getBalance()).to.gt(
         balanceBefore.add(minimumAmount),
       );
+    });
+
+    it('Should supply ETH and withdraw WETH', async () => {
+      const { contract, sign } = await loadFixture(deploy);
+
+      const proxyFee = 3000n;
+      const amount = 10n * 10n ** 17n;
+
+      const cEthBalanceBefore = await cEth.balanceOf(account.address);
+
+      const depositTx =
+        await contract.populateTransaction.depositETHV2(
+          account.address,
+          proxyFee,
+        );
+
+      await contract.multicall([depositTx.data], {
+        value: amount + proxyFee,
+      });
+
+      const cEthBalanceAfter = await cEth.balanceOf(account.address);
+
+      expect(cEthBalanceAfter).gt(cEthBalanceBefore);
+
+      const { permit, signature } = await sign(
+        {
+          token: C_ETH,
+          amount: cEthBalanceAfter,
+        },
+        contract.address,
+      );
+
+      const wethBalanceBefore = await weth.balanceOf(account.address);
+
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const withdrawTx =
+        await contract.populateTransaction.withdrawWETHV2(
+          cEthBalanceAfter,
+          account.address,
+        );
+
+      await contract.multicall([permitTx.data, withdrawTx.data]);
+
+      const wethBalanceAfter = await weth.balanceOf(account.address);
+
+      expect(wethBalanceAfter).to.gt(wethBalanceBefore);
     });
 
     it('Should supply DAI and withdraw it', async () => {
@@ -368,7 +585,24 @@ describe('Compound V2', () => {
 
       const cDaiBalanceBefore = await cDai.balanceOf(account.address);
 
-      await contract.supply(permit1, signature1, C_DAI);
+      const approveTx =
+        await contract.populateTransaction.approveToken(DAI, [C_DAI]);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit1,
+          signature1,
+        );
+      const depositTx = await contract.populateTransaction.depositV2(
+        amount,
+        C_DAI,
+        account.address,
+      );
+
+      await contract.multicall([
+        approveTx.data,
+        permitTx.data,
+        depositTx.data,
+      ]);
 
       const cDaiBalanceAfter = await cDai.balanceOf(account.address);
 
@@ -384,12 +618,145 @@ describe('Compound V2', () => {
 
       const daiBalanceBefore = await dai.balanceOf(account.address);
 
-      await contract.withdraw(permit2, signature2, DAI);
-      // gasUsed: 256k
+      const permitTx2 =
+        await contract.populateTransaction.permitTransferFrom(
+          permit2,
+          signature2,
+        );
+      const withdrawTx =
+        await contract.populateTransaction.withdrawV2(
+          cDaiBalanceAfter,
+          C_DAI,
+          account.address,
+        );
+
+      await contract.multicall([permitTx2.data, withdrawTx.data]);
 
       expect(await dai.balanceOf(account.address)).to.gt(
         daiBalanceBefore.add(minimumAmount),
       );
+    });
+  });
+
+  describe('Repay', () => {
+    it('Should deposit some USDC and borrow DAI', async () => {
+      const { contract, sign } = await loadFixture(deploy);
+
+      const amount = 500n * 10n ** 6n;
+      const proxyFee = 3000n;
+
+      const { permit, signature } = await sign(
+        {
+          token: USDC,
+          amount,
+        },
+        contract.address,
+      );
+
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const depositTx = await contract.populateTransaction.depositV2(
+        amount,
+        C_USDC_V2,
+        account.address,
+      );
+
+      await contract.multicall([permitTx.data, depositTx.data], {
+        value: proxyFee,
+      });
+
+      await comptroller.enterMarkets([C_USDC_V2]);
+
+      const borrowAmount = 1n * 10n ** 8n;
+
+      const daiBalanceBefore = await dai.balanceOf(account.address);
+
+      await cDai.borrow(borrowAmount);
+
+      const daiBalanceAfter = await dai.balanceOf(account.address);
+
+      expect(daiBalanceAfter).to.gt(daiBalanceBefore);
+
+      const { permit: permit1, signature: signature1 } = await sign(
+        {
+          token: DAI,
+          amount: borrowAmount,
+        },
+        contract.address,
+      );
+
+      const approveTx =
+        await contract.populateTransaction.approveToken(DAI, [C_DAI]);
+      const permitTx2 =
+        await contract.populateTransaction.permitTransferFrom(
+          permit1,
+          signature1,
+        );
+      const repayTx = await contract.populateTransaction.repayV2(
+        C_DAI,
+        borrowAmount,
+        account.address,
+      );
+
+      await contract.multicall([
+        approveTx.data,
+        permitTx2.data,
+        repayTx.data,
+      ]);
+    });
+
+    it('Should deposit some WBTC and borrow ETH and repay ETH', async () => {
+      const { contract, sign } = await loadFixture(deploy);
+
+      const amount = 3000n * 10n ** 6n;
+      const proxyFee = 3000n;
+
+      const { permit, signature } = await sign(
+        {
+          token: USDC,
+          amount,
+        },
+        contract.address,
+      );
+
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const depositTx = await contract.populateTransaction.depositV2(
+        amount,
+        C_USDC_V2,
+        account.address,
+      );
+
+      await contract.multicall([permitTx.data, depositTx.data], {
+        value: proxyFee,
+      });
+
+      await comptroller.enterMarkets([C_USDC_V2]);
+
+      const borrowAmount = 1n * 10n ** 18n;
+
+      const ethBalanceBefore = await account.getBalance();
+
+      await cEth.borrow(borrowAmount);
+
+      const ethBalanceAfter = await account.getBalance();
+
+      expect(ethBalanceAfter).to.gt(ethBalanceBefore);
+
+      const repayTx = await contract.populateTransaction.repayETHV2(
+        account.address,
+        0,
+      );
+
+      await contract.multicall([repayTx.data], {
+        value: 1n * 10n ** 18n,
+      });
     });
   });
 
@@ -406,7 +773,7 @@ describe('Compound V2', () => {
 
       const balanceBefore = await account.getBalance();
 
-      await contract.withdrawAdmin();
+      await contract.withdrawAdmin(account.address);
 
       expect(await account.getBalance()).to.gt(balanceBefore);
     });
