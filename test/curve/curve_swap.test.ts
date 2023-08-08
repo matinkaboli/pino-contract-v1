@@ -33,9 +33,9 @@ describe('CurveSwap', () => {
   let account: SignerWithAddress;
 
   const deploy = async () => {
-    const Curve2Token = await ethers.getContractFactory('Curve');
+    const Curve = await ethers.getContractFactory('Curve');
 
-    const contract = await Curve2Token.deploy(
+    const contract = await Curve.deploy(
       PERMIT2_ADDRESS,
       WETH,
       CURVE_SWAP,
