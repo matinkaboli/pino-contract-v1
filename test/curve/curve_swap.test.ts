@@ -4,26 +4,23 @@ import { constants } from 'ethers';
 import { PERMIT2_ADDRESS } from '@uniswap/permit2-sdk';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
-import { IERC20 } from '../typechain-types';
-import { IWETH9 } from '../../typechain-types';
+
+import { IERC20, IWETH9 } from '../../typechain-types';
 import { impersonate, signer } from '../utils/helpers';
 import {
   DAI,
+  ETH,
   FRAX,
   WETH,
   EURS,
   USDC,
   USDT,
-  ETH,
 } from '../utils/addresses';
 
-const SWAP = '0x55b916ce078ea594c10a874ba67ecc3d62e29822';
-const REN_BTC = '0xEB4C2781e4ebA804CE9a9803C67d0893436bB27D';
 const WHALE = '0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8';
+const REN_BTC = '0xEB4C2781e4ebA804CE9a9803C67d0893436bB27D';
 const EURS_WHALE = '0xcfb87039a1eda5428e2c8386d31ccf121835ecdb';
-
-const eursAmount = 1000n * 10n ** 2n;
-const daiAmount = 1000n * 10n ** 18n;
+const CURVE_SWAP = '0x55b916ce078ea594c10a874ba67ecc3d62e29822';
 
 describe('CurveSwap', () => {
   let weth: IWETH9;
@@ -36,9 +33,13 @@ describe('CurveSwap', () => {
   let account: SignerWithAddress;
 
   const deploy = async () => {
-    const Curve2Token = await ethers.getContractFactory('CurveSwap');
+    const Curve2Token = await ethers.getContractFactory('Curve');
 
-    const contract = await Curve2Token.deploy(SWAP, PERMIT2_ADDRESS);
+    const contract = await Curve2Token.deploy(
+      PERMIT2_ADDRESS,
+      WETH,
+      CURVE_SWAP,
+    );
 
     return {
       contract,
@@ -60,6 +61,8 @@ describe('CurveSwap', () => {
     renBtc = await ethers.getContractAt('IERC20', REN_BTC);
 
     const amount = 1000n * 10n ** 6n;
+    const eursAmount = 1000n * 10n ** 2n;
+    const daiAmount = 1000n * 10n ** 18n;
 
     await usdc.connect(whale).transfer(account.address, amount);
     await usdt.connect(whale).transfer(account.address, amount);
@@ -88,8 +91,8 @@ describe('CurveSwap', () => {
     it('Should exchange DAI for USDC', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
-      const minimumReceived = 90n * 10n ** 6n;
-      const amount = 100n * 10n ** 18n;
+      const amount = 100n * 10n ** 18n; // of DAI
+      const minimumReceived = 90n * 10n ** 6n; // of USDC
 
       const { permit, signature } = await sign(
         {
@@ -127,15 +130,30 @@ describe('CurveSwap', () => {
 
       const usdcBalanceBefore = await usdc.balanceOf(account.address);
 
-      await contract.exchangeMultiple(
-        routes,
-        swapParams,
-        minimumReceived,
-        pools,
-        permit,
-        signature,
-      );
-      // gasUsed: 283k
+      const approveTx =
+        await contract.populateTransaction.approveToken(DAI, [
+          CURVE_SWAP,
+        ]);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const swapTx =
+        await contract.populateTransaction.exchangeMultiple(
+          amount,
+          minimumReceived,
+          routes,
+          swapParams,
+          pools,
+          account.address,
+        );
+
+      await contract.multicall([
+        approveTx.data,
+        permitTx.data,
+        swapTx.data,
+      ]);
 
       expect(await usdc.balanceOf(account.address)).to.be.gte(
         usdcBalanceBefore.add(minimumReceived),
@@ -145,8 +163,8 @@ describe('CurveSwap', () => {
     it('Should exchange EURS for DAI', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
-      const amount = 100n * 10n ** 2n;
-      const minimumReceived = 90n * 10n ** 18n;
+      const amount = 100n * 10n ** 2n; // of EURS
+      const minimumReceived = 40n * 10n ** 18n; // of DAI
 
       const { permit, signature } = await sign(
         {
@@ -184,27 +202,42 @@ describe('CurveSwap', () => {
 
       const daiBalanceBefore = await dai.balanceOf(account.address);
 
-      await contract.exchangeMultiple(
-        routes,
-        swapParams,
-        0,
-        pools,
-        permit,
-        signature,
-      );
-      // gasUsed: 687k
+      const approveTx =
+        await contract.populateTransaction.approveToken(EURS, [
+          CURVE_SWAP,
+        ]);
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const swapTx =
+        await contract.populateTransaction.exchangeMultiple(
+          amount,
+          minimumReceived,
+          routes,
+          swapParams,
+          pools,
+          account.address,
+        );
+
+      await contract.multicall([
+        approveTx.data,
+        permitTx.data,
+        swapTx.data,
+      ]);
 
       expect(await dai.balanceOf(account.address)).to.be.gte(
         daiBalanceBefore.add(minimumReceived),
       );
     });
 
-    it('Should exchange WETH for EURS (using multiple_exchange)', async () => {
+    it('Should exchange ETH for EURS (using multiple_exchange)', async () => {
       const { contract } = await loadFixture(deploy);
 
-      const fee = 100n;
-      const amount = 1n * 10n ** 18n;
-      const minimumReceived = 1000n * 10n ** 2n;
+      const proxyFee = 100n;
+      const amount = 1n * 10n ** 18n; // of ETH
+      const minimumReceived = 1000n * 10n ** 2n; // of EURS
 
       const routes = [
         ETH,
@@ -234,18 +267,20 @@ describe('CurveSwap', () => {
 
       const eursBalanceBefore = await eurs.balanceOf(account.address);
 
-      await contract.exchangeMultipleEth(
-        routes,
-        swapParams,
-        amount,
-        0,
-        pools,
-        fee,
-        {
-          value: amount + fee,
-        },
-      );
-      // gasUsed: 622k
+      const swapTx =
+        await contract.populateTransaction.exchangeMultipleETH(
+          amount,
+          minimumReceived,
+          routes,
+          swapParams,
+          pools,
+          account.address,
+          proxyFee,
+        );
+
+      await contract.multicall([swapTx.data], {
+        value: amount + proxyFee,
+      });
 
       expect(await eurs.balanceOf(account.address)).to.be.gte(
         eursBalanceBefore.add(minimumReceived),
@@ -255,7 +290,7 @@ describe('CurveSwap', () => {
     it('Should exchange ETH for FRAX (using multiple_exchange)', async () => {
       const { contract } = await loadFixture(deploy);
 
-      const fee = 1000n;
+      const proxyFee = 1000n;
       const amount = 5n * 10n ** 18n;
       const minimumReceived = 6000n * 10n * 18n;
 
@@ -287,18 +322,20 @@ describe('CurveSwap', () => {
 
       const fraxBalanceBefore = await frax.balanceOf(account.address);
 
-      await contract.exchangeMultipleEth(
-        routes,
-        swapParams,
-        amount,
-        minimumReceived,
-        pools,
-        fee,
-        {
-          value: amount + fee,
-        },
-      );
-      // gasUsed: 537k
+      const swapTx =
+        await contract.populateTransaction.exchangeMultipleETH(
+          amount,
+          minimumReceived,
+          routes,
+          swapParams,
+          pools,
+          account.address,
+          proxyFee,
+        );
+
+      await contract.multicall([swapTx.data], {
+        value: amount + proxyFee,
+      });
 
       expect(await frax.balanceOf(account.address)).to.be.gte(
         fraxBalanceBefore.add(minimumReceived),
@@ -308,7 +345,7 @@ describe('CurveSwap', () => {
     it('Should exchange ETH for renBTC (using multiple_exchange)', async () => {
       const { contract } = await loadFixture(deploy);
 
-      const fee = 1000n;
+      const proxyFee = 1000n;
       const amount = 1n * 10n ** 18n;
       const minimumReceived = 0n;
 
@@ -342,18 +379,20 @@ describe('CurveSwap', () => {
         account.address,
       );
 
-      await contract.exchangeMultipleEth(
-        routes,
-        swapParams,
-        amount,
-        minimumReceived,
-        pools,
-        fee,
-        {
-          value: amount + fee,
-        },
-      );
-      // gasUsed: 435k
+      const swapTx =
+        await contract.populateTransaction.exchangeMultipleETH(
+          amount,
+          minimumReceived,
+          routes,
+          swapParams,
+          pools,
+          account.address,
+          proxyFee,
+        );
+
+      await contract.multicall([swapTx.data], {
+        value: amount + proxyFee,
+      });
 
       expect(await renBtc.balanceOf(account.address)).to.be.gte(
         renBalanceBefore.add(minimumReceived),
@@ -374,7 +413,7 @@ describe('CurveSwap', () => {
 
       const balanceBefore = await account.getBalance();
 
-      await contract.withdrawAdmin();
+      await contract.withdrawAdmin(account.address);
 
       expect(await account.getBalance()).to.gt(balanceBefore);
     });
