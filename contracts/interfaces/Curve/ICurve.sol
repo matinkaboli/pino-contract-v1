@@ -1,38 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
-import "../Proxy.sol";
-import "../interfaces/IWETH9.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "./IPool.sol";
 
-interface ICurveSwap {
-    function exchange_multiple(
-        address[9] memory _route,
-        uint256[3][4] memory _swap_params,
-        uint256 _amount,
-        uint256 _expected,
-        address[4] memory _pools,
-        address _receiver
-    ) external payable returns (uint256);
-}
-
-/// @title Curve swap proxy contract
-/// @author Matin Kaboli
-/// @notice Exchanges tokens from different pools
-contract CurveSwap is Proxy {
-    using SafeERC20 for IERC20;
-
-    ICurveSwap public immutable CurveSwapInterface;
-    address constant ETH = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
-
-    /// @notice Receives swap contract address
-    /// @param _curveSwap Swap contract address
-    constructor(Permit2 _permit2, IWETH9 _weth, ICurveSwap _curveSwap) Proxy(_permit2, _weth) {
-        CurveSwapInterface = _curveSwap;
-    }
-
+/// @title Curve proxy contract interface
+/// @author Pino Development Team
+/// @notice Exchanges tokens from different pools and add/remove liquidity
+interface ICurve {
     /// @notice Perform up to four swaps in a single transaction
     /// @dev Routing and swap params must be determined off-chain. This functionality is designed for gas efficiency over ease-of-use.
+    /// @param _amount The amount that will be used for the swap
     /// @param _route Array of [initial token, pool, token, pool, token, ...]
     /// The array is iterated until a pool address of 0x00, then the last
     /// given token is transferred to `_receiver`
@@ -49,30 +26,20 @@ contract CurveSwap is Proxy {
     /// @param _expected The minimum amount received after the final swap.
     /// @param _pools Array of pools for swaps via zap contracts. This parameter is only needed for
     /// Polygon meta-factories underlying swaps.
-    /// @param _permit Permit2 PermitTransferFrom struct, includes receiver, token and amount
-    /// @param _signature Signature, used by Permit2
+    /// @param _recipient The address that will receive the swap
+    /// @return received Received amount of the final output token
     function exchangeMultiple(
+        uint256 _amount,
+        uint256 _expected,
         address[9] memory _route,
         uint256[3][4] memory _swap_params,
-        uint256 _expected,
         address[4] memory _pools,
-        ISignatureTransfer.PermitTransferFrom calldata _permit,
-        bytes calldata _signature
-    ) external payable {
-        permit2.permitTransferFrom(
-            _permit,
-            ISignatureTransfer.SignatureTransferDetails({to: address(this), requestedAmount: _permit.permitted.amount}),
-            msg.sender,
-            _signature
-        );
-
-        CurveSwapInterface.exchange_multiple(
-            _route, _swap_params, _permit.permitted.amount, _expected, _pools, msg.sender
-        );
-    }
+        address _recipient
+    ) external payable returns (uint256 received);
 
     /// @notice Perform up to four swaps in a single transaction
     /// @dev Routing and swap params must be determined off-chain. This functionality is designed for gas efficiency over ease-of-use.
+    /// @param _amount The amount of `_route[0]` token being sent.
     /// @param _route Array of [initial token, pool, token, pool, token, ...]
     /// The array is iterated until a pool address of 0x00, then the last
     /// given token is transferred to `_receiver`
@@ -86,25 +53,51 @@ contract CurveSwap is Proxy {
     /// 6 for factory crypto-meta pools underlying exchange (`exchange` method in zap),
     /// 7-9 for underlying coin -> LP token "exchange" (actually `add_liquidity`),
     /// 10-11 for LP token -> underlying coin "exchange" (actually `remove_liquidity_one_coin`)
-    /// @param _amount The amount of `_route[0]` token being sent.
     /// @param _expected The minimum amount received after the final swap.
     /// @param _pools Array of pools for swaps via zap contracts. This parameter is only needed for
     /// Polygon meta-factories underlying swaps.
-    /// @param _fee Fee of the proxy
-    function exchangeMultipleEth(
-        address[9] memory _route,
-        uint256[3][4] memory _swap_params,
+    /// @param _proxyFee Fee of the proxy contract
+    /// @return received Received amount of the final output token
+    function exchangeMultipleETH(
         uint256 _amount,
         uint256 _expected,
+        address[9] memory _route,
+        uint256[3][4] memory _swap_params,
         address[4] memory _pools,
-        uint256 _fee
-    ) external payable {
-        uint256 ethValue = 0;
+        address _recipient,
+        uint96 _proxyFee
+    ) external payable returns (uint256 received);
 
-        ethValue = msg.value - _fee;
+    /// @notice Adds liquidity to a pool
+    /// @param _amounts Amounts of the tokens in the pool to deposit
+    /// @param _minMintAmount Minimum amount of LP tokens to mint from the deposit
+    /// @param _pool Address of the pool
+    /// @param _proxyFee Fee of the proxy contract
+    function addLiquidity(uint256[2] memory _amounts, uint256 _minMintAmount, CurvePool _pool, uint96 _proxyFee)
+        external
+        payable;
 
-        CurveSwapInterface.exchange_multiple{value: ethValue}(
-            _route, _swap_params, _amount, _expected, _pools, msg.sender
-        );
-    }
+    /// @notice Withdraw token from the pool
+    /// @param _amount Quantity of LP tokens to burn in the withdrawal
+    /// @param _minAmounts Minimum amounts of underlying tokens to receive
+    /// @param _pool Address of the pool
+    function removeLiquidity(uint256 _amount, uint256[2] memory _minAmounts, CurvePool _pool) external payable;
+
+    /// @notice Withdraw a single token from the pool
+    /// @param _amount Amount of LP tokens to burn in the withdrawal
+    /// @param _i Index value of the coin to withdraw
+    /// @param _minAmount Minimum amount of coin to receive
+    /// @param _pool Address of the pool
+    function removeLiquidityOneCoinI(uint256 _amount, int128 _i, uint256 _minAmount, CurvePool _pool)
+        external
+        payable;
+
+    /// @notice Withdraw a single token from the pool
+    /// @param _amount Amount of LP tokens to burn in the withdrawal
+    /// @param _i Index value of the coin to withdraw
+    /// @param _minAmount Minimum amount of coin to receive
+    /// @param _pool Address of the pool
+    function removeLiquidityOneCoinU(uint256 _amount, uint256 _i, uint256 _minAmount, CurvePool _pool)
+        external
+        payable;
 }

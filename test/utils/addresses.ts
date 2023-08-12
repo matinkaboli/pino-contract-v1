@@ -184,6 +184,8 @@ export const C_SAI = '0xF5DCe57282A584D2746FaF1593d3121Fcac444dC';
 
 export const C_SUSHI = '0x4B0181102A0112A2ef11AbEE5563bb4a3176c9d7';
 
+export const SETH = '0x5e74c9036fb86bd7ecdcb084a0673efc32ea31cb';
+
 export const WHALE3POOL =
   '0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8';
 
