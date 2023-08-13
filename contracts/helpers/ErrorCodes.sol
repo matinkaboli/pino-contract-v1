@@ -10,4 +10,6 @@ library ErrorCodes {
     uint256 internal constant FAIELD_TO_SWAP_USING_1INCH = 3;
     uint256 internal constant FAIELD_TO_SWAP_USING_PARASWAP = 4;
     uint256 internal constant FAIELD_TO_SWAP_USING_0X = 5;
+    uint256 internal constant FAIELD_TO_SWAP_USING_UNISWAP = 6;
+
 }

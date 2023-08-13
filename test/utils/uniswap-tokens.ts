@@ -1,4 +1,4 @@
-import { Token } from '@uniswap/sdk-core';
+import { Ether, Token } from '@uniswap/sdk-core';
 import {
   DAI,
   FRAX,
@@ -10,6 +10,7 @@ import {
   WETH,
 } from './addresses';
 
+export const ETH_TOKEN = new Ether(1);
 export const DAI_TOKEN = new Token(1, DAI, 18, 'DAI', 'DAI');
 export const WBTC_TOKEN = new Token(1, WBTC, 8, 'WBTC', 'WBTC');
 export const USDC_TOKEN = new Token(1, USDC, 6, 'USDC', 'USDC');

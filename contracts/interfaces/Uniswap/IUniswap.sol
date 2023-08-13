@@ -53,67 +53,9 @@ pragma abicoder v2;
 /// @notice Mints and Increases liquidity and swaps tokens
 /// @dev This contract uses Permit2
 interface IUniswap {
-    struct SwapExactInputMultihopParams {
-        bytes path;
-        uint256 amountIn;
-        uint256 amountOutMinimum;
-    }
-
-    /// @notice Swaps a fixed amount of token1 for a maximum possible amount of token2 through an intermediary pool.
-    /// @param _params The params necessary to swap exact input multihop
-    /// path abi.encodePacked of [address, u24, address, u24, address]
-    /// amountIn The exact amount in of token in
-    /// amountOutMinimum Minimum amount of token out
-    /// @return amountOut The exact amount of tokenOut received from the swap.
-    function swapExactInputMultihop(SwapExactInputMultihopParams calldata _params)
-        external
-        payable
-        returns (uint256 amountOut);
-
-    struct SwapExactOutputMultihopParams {
-        bytes path;
-        uint256 amountInMaximum;
-        uint256 amountOut;
-    }
-
-    /// @notice Swaps a minimum possible amount of token1 for a fixed amount of token2 through an intermediary pool.
-    /// @param _params The params necessary to swap exact output multihop
-    /// path abi.encodePacked of [address, u24, address, u24, address]
-    /// amountInMaximum The maximum amount of token in
-    /// amountOut The desired amount of token out
-    /// @return amountIn The exact amount of tokenIn spent to receive the exact desired amountOut.
-    function swapExactOutputMultihop(SwapExactOutputMultihopParams calldata _params)
-        external
-        payable
-        returns (uint256 amountIn);
-
-    struct SwapMultihopPath {
-        bytes path;
-        uint256 amountIn;
-        uint256 amountOutMinimum;
-    }
-
-    /// @notice Swaps a fixed amount of token for a maximum possible amount of token2 through intermediary pools.
-    /// @param _paths Paths of uniswap pools
-    /// path abi.encodePacked of [address, u24, address, u24, address]
-    /// amountIn The exact amount in of token in
-    /// amountOutMinimum Minimum amount of token out
-    /// @return amountOut The exact amount of tokenOut received from the swap.
-    function swapExactInputMultihopMultiPool(SwapMultihopPath[] calldata _paths)
-        external
-        payable
-        returns (uint256 amountOut);
-
-    /// @notice Swaps a minimum possible amount of token for a fixed amount of token2 through intermediary pools.
-    /// @param _paths Paths of uniswap pools
-    /// path abi.encodePacked of [address, u24, address, u24, address]
-    /// amountInMaximum The maximum amount of token in
-    /// amountOut The desired amount of token out
-    /// @return amountIn The exact amount of tokenIn spent to receive the exact desired amountOut.
-    function swapExactOutputMultihopMultiPool(SwapMultihopPath[] calldata _paths)
-        external
-        payable
-        returns (uint256 amountIn);
+    /// @notice Calls Uniswap Router 2 and swpas using calldata
+    /// @param _data Calldata generated from the uniswap smart order router
+    function swap(bytes calldata _data) external payable;
 
     struct MintParams {
         uint24 fee;

@@ -54,7 +54,6 @@ import "../interfaces/Uniswap/IUniswap.sol";
 import "../interfaces/Uniswap/INonfungiblePositionManager.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 
 /// @title UniswapV3 proxy contract
 /// @author Pino Development Team
@@ -65,124 +64,25 @@ contract Uniswap is IUniswap, Pino {
 
     event Mint(uint256 tokenId);
 
-    ISwapRouter public immutable swapRouter;
+    address public immutable swapRouter2;
     INonfungiblePositionManager public immutable nfpm;
 
-    constructor(Permit2 _permit2, IWETH9 _weth, ISwapRouter _swapRouter, INonfungiblePositionManager _nfpm)
+    constructor(Permit2 _permit2, IWETH9 _weth, address _swapRouter2, INonfungiblePositionManager _nfpm)
         Pino(_permit2, _weth)
     {
         nfpm = _nfpm;
-        swapRouter = _swapRouter;
+        swapRouter2 = _swapRouter2;
 
         IERC20(address(_weth)).safeApprove(address(_nfpm), type(uint256).max);
-        IERC20(address(_weth)).safeApprove(address(_swapRouter), type(uint256).max);
+        IERC20(address(_weth)).safeApprove(_swapRouter2, type(uint256).max);
     }
 
-    /// @notice Swaps a fixed amount of token1 for a maximum possible amount of token2 through an intermediary pool.
-    /// @param _params The params necessary to swap exact input multihop
-    /// path abi.encodePacked of [address, u24, address, u24, address]
-    /// amountIn The exact amount in of token in
-    /// amountOutMinimum Minimum amount of token out
-    /// @return amountOut The exact amount of tokenOut received from the swap.
-    function swapExactInputMultihop(SwapExactInputMultihopParams calldata _params)
-        external
-        payable
-        returns (uint256 amountOut)
-    {
-        ISwapRouter.ExactInputParams memory swapParams = ISwapRouter.ExactInputParams({
-            path: _params.path,
-            deadline: block.timestamp,
-            amountIn: _params.amountIn,
-            amountOutMinimum: _params.amountOutMinimum,
-            recipient: address(this)
-        });
+    /// @notice Calls Uniswap Router 2 and swpas using calldata
+    /// @param _data Calldata generated from the uniswap smart order router
+    function swap(bytes calldata _data) external payable {
+      (bool success,) = swapRouter2.call(_data);
 
-        amountOut = swapRouter.exactInput(swapParams);
-    }
-
-    /// @notice Swaps a minimum possible amount of token1 for a fixed amount of token2 through an intermediary pool.
-    /// @param _params The params necessary to swap exact output multihop
-    /// path abi.encodePacked of [address, u24, address, u24, address]
-    /// amountInMaximum The maximum amount of token in
-    /// amountOut The desired amount of token out
-    /// @return amountIn The exact amount of tokenIn spent to receive the exact desired amountOut.
-    function swapExactOutputMultihop(SwapExactOutputMultihopParams calldata _params)
-        external
-        payable
-        returns (uint256 amountIn)
-    {
-        ISwapRouter.ExactOutputParams memory swapParams = ISwapRouter.ExactOutputParams({
-            path: _params.path,
-            recipient: address(this),
-            deadline: block.timestamp,
-            amountOut: _params.amountOut,
-            amountInMaximum: _params.amountInMaximum
-        });
-
-        amountIn = swapRouter.exactOutput(swapParams);
-    }
-
-    /// @notice Swaps a fixed amount of token for a maximum possible amount of token2 through intermediary pools.
-    /// @param _paths Paths of uniswap pools
-    /// path abi.encodePacked of [address, u24, address, u24, address]
-    /// amountIn The exact amount in of token in
-    /// amountOutMinimum Minimum amount of token out
-    /// @return amountOut The exact amount of tokenOut received from the swap.
-    function swapExactInputMultihopMultiPool(SwapMultihopPath[] calldata _paths)
-        external
-        payable
-        returns (uint256 amountOut)
-    {
-        amountOut = 0;
-
-        for (uint8 i = 0; i < _paths.length;) {
-            ISwapRouter.ExactInputParams memory swapParams = ISwapRouter.ExactInputParams({
-                path: _paths[i].path,
-                deadline: block.timestamp,
-                amountIn: _paths[i].amountIn,
-                recipient: address(this),
-                amountOutMinimum: _paths[i].amountOutMinimum
-            });
-
-            uint256 exactAmountOut = swapRouter.exactInput(swapParams);
-
-            amountOut += exactAmountOut;
-
-            unchecked {
-                ++i;
-            }
-        }
-    }
-
-    /// @notice Swaps a minimum possible amount of token for a fixed amount of token2 through intermediary pools.
-    /// @param _paths Paths of uniswap pools
-    /// path abi.encodePacked of [address, u24, address, u24, address]
-    /// amountInMaximum The maximum amount of token in
-    /// amountOut The desired amount of token out
-    /// @return amountIn The exact amount of tokenIn spent to receive the exact desired amountOut.
-    function swapExactOutputMultihopMultiPool(SwapMultihopPath[] calldata _paths)
-        external
-        payable
-        returns (uint256 amountIn)
-    {
-        amountIn = 0;
-
-        for (uint8 i = 0; i < _paths.length;) {
-            ISwapRouter.ExactOutputParams memory swapParams = ISwapRouter.ExactOutputParams({
-                path: _paths[i].path,
-                deadline: block.timestamp,
-                amountInMaximum: _paths[i].amountIn,
-                amountOut: _paths[i].amountOutMinimum,
-                recipient: address(this)
-            });
-
-            uint256 exactAmountIn = swapRouter.exactOutput(swapParams);
-            amountIn += exactAmountIn;
-
-            unchecked {
-                ++i;
-            }
-        }
+      _require(success, ErrorCodes.FAIELD_TO_SWAP_USING_UNISWAP);
     }
 
     /// @notice Creates a new position wrapped in a NFT
