@@ -16,13 +16,19 @@ import { impersonate, multiSigner, signer } from '../utils/helpers';
 import { IERC20, IWETH9 } from '../../typechain-types';
 import {
   fromReadableAmount,
-  uniswapOrderRoute,
+  uniswapRouteInput,
+  uniswapRouteOutput,
 } from '../utils/uniswap-order-route';
-import { LUSD_TOKEN, WETH_TOKEN } from '../utils/uniswap-tokens';
+import {
+  DAI_TOKEN,
+  ETH_TOKEN,
+  LUSD_TOKEN,
+  WETH_TOKEN,
+} from '../utils/uniswap-tokens';
 
 const { constants } = ethers;
 const NFPM = '0xC36442b4a4522E871399CD717aBDD847Ab11FE88';
-const SWAP_ROUTER = '0xE592427A0AEce92De3Edee1F18E0157C05861564';
+const SWAP_ROUTER_2 = '0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45';
 
 describe('Uniswap', () => {
   let dai: IERC20;
@@ -38,15 +44,14 @@ describe('Uniswap', () => {
     const contract = await IUNISWAP.deploy(
       PERMIT2_ADDRESS,
       WETH,
-      SWAP_ROUTER,
+      SWAP_ROUTER_2,
       NFPM,
     );
 
-    await contract.approveToken(DAI, [NFPM, SWAP_ROUTER]);
-    await contract.approveToken(WETH, [NFPM, SWAP_ROUTER]);
-    await contract.approveToken(USDC, [NFPM, SWAP_ROUTER]);
-    await contract.approveToken(USDT, [NFPM, SWAP_ROUTER]);
-    await contract.approveToken(LUSD, [NFPM, SWAP_ROUTER]);
+    await contract.approveToken(DAI, [NFPM, SWAP_ROUTER_2]);
+    await contract.approveToken(USDC, [NFPM, SWAP_ROUTER_2]);
+    await contract.approveToken(USDT, [NFPM, SWAP_ROUTER_2]);
+    await contract.approveToken(LUSD, [NFPM, SWAP_ROUTER_2]);
 
     return {
       contract,
@@ -86,6 +91,49 @@ describe('Uniswap', () => {
   });
 
   describe('Swap multihop', () => {
+    it('Should swap WETH > LUSD exact input', async () => {
+      const { sign, contract } = await loadFixture(deploy);
+
+      const token = WETH;
+      const amount = 1n * 10n ** 18n;
+
+      const { permit, signature } = await sign(
+        {
+          token,
+          amount,
+        },
+        contract.address,
+      );
+
+      const { calldata } = await uniswapRouteInput(
+        account.address,
+        fromReadableAmount(1, 18),
+        WETH_TOKEN,
+        LUSD_TOKEN,
+      );
+
+      if (!calldata) {
+        throw Error('Could not find a path');
+      }
+
+      const lusdBalanceBefore = await lusd.balanceOf(account.address);
+
+      const permitTx =
+        await contract.populateTransaction.permitTransferFrom(
+          permit,
+          signature,
+        );
+      const swapTx = await contract.populateTransaction.swap(
+        calldata,
+      );
+
+      await contract.multicall([permitTx.data, swapTx.data]);
+
+      const lusdBalanceAfter = await lusd.balanceOf(account.address);
+
+      expect(lusdBalanceAfter).to.gt(lusdBalanceBefore);
+    });
+
     it('Should swap DAI > USDC > WETH exact input', async () => {
       const { sign, contract } = await loadFixture(deploy);
 
@@ -99,16 +147,16 @@ describe('Uniswap', () => {
         contract.address,
       );
 
-      const path = ethers.utils.solidityPack(
-        ['address', 'uint24', 'address', 'uint24', 'address'],
-        [DAI, 3000, USDC, 3000, WETH],
+      const { calldata } = await uniswapRouteInput(
+        account.address,
+        fromReadableAmount(500, 18),
+        DAI_TOKEN,
+        WETH_TOKEN,
       );
 
-      const swapParams = {
-        path,
-        amountIn: amount,
-        amountOutMinimum: 0,
-      };
+      if (!calldata) {
+        throw Error('Could not find a path');
+      }
 
       const wethBalanceBefore = await weth.balanceOf(account.address);
 
@@ -118,76 +166,44 @@ describe('Uniswap', () => {
           signature,
         );
 
-      const swapTx =
-        await contract.populateTransaction.swapExactInputMultihop(
-          swapParams,
-        );
-
-      const sweepTx = await contract.populateTransaction.sweepToken(
-        WETH,
-        account.address,
+      const swapTx = await contract.populateTransaction.swap(
+        calldata,
       );
 
-      await contract.multicall([
-        permitTx.data,
-        swapTx.data,
-        sweepTx.data,
-      ]);
+      await contract.multicall([permitTx.data, swapTx.data]);
 
       const wethBalanceAfter = await weth.balanceOf(account.address);
 
       expect(wethBalanceAfter).to.gt(wethBalanceBefore);
     });
 
-    it('Should swap ETH > LUSD using uniswap-smart-route', async () => {
+    it('Should swap ETH > LUSD exact input', async () => {
       const { sign, contract } = await loadFixture(deploy);
 
-      const amount = 3000n * 10n ** 18n;
+      const amount = 1n * 10n ** 18n;
 
-      const { permit, signature } = await sign(
-        {
-          amount,
-          token: WETH,
-        },
-        contract.address,
-      );
-
-      const pathBytes = await uniswapOrderRoute(
+      const { calldata } = await uniswapRouteInput(
         account.address,
-        fromReadableAmount(3000, 18),
+        fromReadableAmount(1, 18),
         WETH_TOKEN,
         LUSD_TOKEN,
-        TradeType.EXACT_INPUT,
       );
 
-      if (!pathBytes) {
+      if (!calldata) {
         throw Error('Could not find a path');
       }
 
       const lusdBalanceBefore = await lusd.balanceOf(account.address);
 
-      const permitTx =
-        await contract.populateTransaction.permitTransferFrom(
-          permit,
-          signature,
-        );
+      const wrapTx = await contract.populateTransaction.wrapETH(0);
 
-      const swapTx =
-        await contract.populateTransaction.swapExactInputMultihopMultiPool(
-          pathBytes,
-        );
+      const swapTx = await contract.populateTransaction.swap(
+        calldata,
+      );
 
-      const sweepToken =
-        await contract.populateTransaction.sweepToken(
-          LUSD,
-          account.address,
-        );
-
-      await contract.multicall([
-        permitTx.data,
-        swapTx.data,
-        sweepToken.data,
-      ]);
+      await contract.multicall([wrapTx.data, swapTx.data], {
+        value: amount,
+      });
 
       const lusdBalanceAfter = await lusd.balanceOf(account.address);
 
@@ -208,16 +224,16 @@ describe('Uniswap', () => {
         contract.address,
       );
 
-      const path = ethers.utils.solidityPack(
-        ['address', 'uint24', 'address', 'uint24', 'address'],
-        [WETH, 3000, USDC, 3000, DAI],
+      const { calldata } = await uniswapRouteOutput(
+        account.address,
+        fromReadableAmount(1, 17),
+        DAI_TOKEN,
+        WETH_TOKEN,
       );
 
-      const swapParams = {
-        path,
-        amountOut,
-        amountInMaximum: amount,
-      };
+      if (!calldata) {
+        throw Error('Could not find a path');
+      }
 
       const wethBalanceBefore = await weth.balanceOf(account.address);
 
@@ -227,13 +243,11 @@ describe('Uniswap', () => {
           signature,
         );
 
-      const swapTx =
-        await contract.populateTransaction.swapExactOutputMultihop(
-          swapParams,
-        );
-
+      const swapTx = await contract.populateTransaction.swap(
+        calldata,
+      );
       const sweepTx = await contract.populateTransaction.sweepToken(
-        WETH,
+        DAI,
         account.address,
       );
 
@@ -248,11 +262,10 @@ describe('Uniswap', () => {
       expect(wethBalanceAfter).to.gt(wethBalanceBefore);
     });
 
-    it('Should swap DAI > USDC > WETH exact output and receive ETH instead', async () => {
+    it('Should swap DAI > USDC > ETH exact input', async () => {
       const { sign, contract } = await loadFixture(deploy);
 
       const amount = 500n * 10n ** 18n;
-      const amountOut = 1n * 10n ** 17n;
 
       const { permit, signature } = await sign(
         {
@@ -262,16 +275,16 @@ describe('Uniswap', () => {
         contract.address,
       );
 
-      const path = ethers.utils.solidityPack(
-        ['address', 'uint24', 'address', 'uint24', 'address'],
-        [WETH, 3000, USDC, 3000, DAI],
+      const { calldata } = await uniswapRouteInput(
+        account.address,
+        fromReadableAmount(500, 18),
+        DAI_TOKEN,
+        ETH_TOKEN,
       );
 
-      const swapParams = {
-        path,
-        amountOut,
-        amountInMaximum: amount,
-      };
+      if (!calldata) {
+        throw Error('Could not find a path');
+      }
 
       const ethBalanceBefore = await account.getBalance();
 
@@ -281,20 +294,11 @@ describe('Uniswap', () => {
           signature,
         );
 
-      const swapTx =
-        await contract.populateTransaction.swapExactOutputMultihop(
-          swapParams,
-        );
-
-      const unwrapTx = await contract.populateTransaction.unwrapWETH9(
-        account.address,
+      const swapTx = await contract.populateTransaction.swap(
+        calldata,
       );
 
-      await contract.multicall([
-        permitTx.data,
-        swapTx.data,
-        unwrapTx.data,
-      ]);
+      await contract.multicall([permitTx.data, swapTx.data]);
 
       const ethBalanceAfter = await account.getBalance();
 
@@ -307,36 +311,29 @@ describe('Uniswap', () => {
       const amount = 1n * 10n ** 18n;
       const amountOut = 1000n * 10n ** 18n;
 
-      const path = ethers.utils.solidityPack(
-        ['address', 'uint24', 'address', 'uint24', 'address'],
-        [DAI, 100, USDC, 500, WETH],
+      const { calldata } = await uniswapRouteOutput(
+        account.address,
+        fromReadableAmount(1000, 18),
+        WETH_TOKEN,
+        DAI_TOKEN,
       );
 
-      const swapParams = {
-        path,
-        amountOut,
-        amountInMaximum: amount,
-      };
+      if (!calldata) {
+        throw Error('Could not find a path');
+      }
 
       const daiBalanceBefore = await dai.balanceOf(account.address);
 
       const wrapTx = await contract.populateTransaction.wrapETH(0);
-
-      const swapTx =
-        await contract.populateTransaction.swapExactOutputMultihop(
-          swapParams,
-        );
-
-      const sweepTx = await contract.populateTransaction.sweepToken(
-        DAI,
-        account.address,
+      const swapTx = await contract.populateTransaction.swap(
+        calldata,
       );
       const unwrapTx = await contract.populateTransaction.unwrapWETH9(
         account.address,
       );
 
       await contract.multicall(
-        [wrapTx.data, swapTx.data, sweepTx.data, unwrapTx.data],
+        [wrapTx.data, swapTx.data, unwrapTx.data],
         {
           value: amount,
         },
@@ -351,41 +348,29 @@ describe('Uniswap', () => {
       const { contract } = await loadFixture(deploy);
 
       const amount = 1n * 10n ** 18n;
-      const proxyFee = 0n;
 
-      const path = ethers.utils.solidityPack(
-        ['address', 'uint24', 'address', 'uint24', 'address'],
-        [WETH, 3000, USDC, 3000, DAI],
+      const { calldata } = await uniswapRouteInput(
+        account.address,
+        fromReadableAmount(1, 18),
+        WETH_TOKEN,
+        DAI_TOKEN,
       );
 
-      const swapParams = {
-        path,
-        amountIn: amount,
-        amountOutMinimum: 0,
-      };
+      if (!calldata) {
+        throw Error('Could not find a path');
+      }
 
       const daiBalanceBefore = await dai.balanceOf(account.address);
 
-      const wrapTx = await contract.populateTransaction.wrapETH(
-        proxyFee,
+      const wrapTx = await contract.populateTransaction.wrapETH(0);
+
+      const swapTx = await contract.populateTransaction.swap(
+        calldata,
       );
 
-      const swapTx =
-        await contract.populateTransaction.swapExactInputMultihop(
-          swapParams,
-        );
-
-      const sweepTx = await contract.populateTransaction.sweepToken(
-        DAI,
-        account.address,
-      );
-
-      await contract.multicall(
-        [wrapTx.data, swapTx.data, sweepTx.data],
-        {
-          value: amount,
-        },
-      );
+      await contract.multicall([wrapTx.data, swapTx.data], {
+        value: amount,
+      });
 
       const daiBalanceAfter = await dai.balanceOf(account.address);
 

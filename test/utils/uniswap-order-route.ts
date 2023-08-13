@@ -14,7 +14,6 @@ import {
   TradeType,
   CurrencyAmount,
 } from '@uniswap/sdk-core';
-import generateUniswapPath from './generateUniswapPath';
 
 config();
 
@@ -62,12 +61,11 @@ export const fromReadableAmount = (
 export const bigNumberToString = (num: BN): string =>
   BigInt(Number(num.toString())).toString();
 
-export const uniswapOrderRoute = async (
+export const uniswapRouteInput = async (
   recipient: string,
   amountIn: JSBI,
   tokenIn: Token,
   tokenOut: Token,
-  tradeType: TradeType,
 ) => {
   const options: SwapOptionsSwapRouter02 = {
     recipient,
@@ -79,7 +77,7 @@ export const uniswapOrderRoute = async (
   const route = await router.route(
     CurrencyAmount.fromRawAmount(tokenIn, amountIn),
     tokenOut,
-    tradeType,
+    TradeType.EXACT_INPUT,
     options,
   );
 
@@ -87,43 +85,38 @@ export const uniswapOrderRoute = async (
     return null;
   }
 
-  const routes = [];
-  const { swaps } = route.trade;
+  return {
+    calldata: route.methodParameters?.calldata,
+    to: route.methodParameters?.to,
+  };
+};
 
-  for (let i = 0; i < swaps.length; i += 1) {
-    const inputAmount = new BN(swaps[i].inputAmount.toExact()).times(
-      new BN(10).pow(swaps[i].inputAmount.currency.decimals),
-    );
-    const outputAmount = new BN(
-      swaps[i].outputAmount.toExact(),
-    ).times(
-      new BN(10).pow(swaps[i].outputAmount.currency.decimals - 1),
-    );
+export const uniswapRouteOutput = async (
+  recipient: string,
+  amountOut: JSBI,
+  tokenIn: Token,
+  tokenOut: Token,
+) => {
+  const options: SwapOptionsSwapRouter02 = {
+    recipient,
+    slippageTolerance: new Percent(1000, 10_000),
+    deadline: Math.floor(Date.now() / 1000 + 1800),
+    type: SwapType.SWAP_ROUTER_02,
+  };
 
-    const pathBytes = [];
-    const { path } = swaps[i].route;
+  const route = await router.route(
+    CurrencyAmount.fromRawAmount(tokenOut, amountOut),
+    tokenIn,
+    TradeType.EXACT_OUTPUT,
+    options,
+  );
 
-    for (let j = 0; j < path.length; j += 1) {
-      pathBytes.push(path[j].address);
-
-      if (swaps[i].route.pools[j]) {
-        pathBytes.push(swaps[i].route.pools[j].fee);
-      }
-    }
-
-    const generatedPath = ethers.utils.solidityPack(
-      generateUniswapPath(pathBytes).types,
-      generateUniswapPath(pathBytes).values,
-    );
-
-    const swapParams = {
-      path: generatedPath,
-      amountIn: bigNumberToString(inputAmount),
-      amountOutMinimum: bigNumberToString(outputAmount),
-    };
-
-    routes.push(swapParams);
+  if (!route) {
+    return null;
   }
 
-  return routes;
+  return {
+    calldata: route.methodParameters?.calldata,
+    to: route.methodParameters?.to,
+  };
 };
