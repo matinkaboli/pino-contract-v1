@@ -64,25 +64,12 @@ contract Uniswap is IUniswap, Pino {
 
     event Mint(uint256 tokenId);
 
-    address public immutable swapRouter2;
     INonfungiblePositionManager public immutable nfpm;
 
-    constructor(Permit2 _permit2, IWETH9 _weth, address _swapRouter2, INonfungiblePositionManager _nfpm)
-        Pino(_permit2, _weth)
-    {
+    constructor(Permit2 _permit2, IWETH9 _weth, INonfungiblePositionManager _nfpm) Pino(_permit2, _weth) {
         nfpm = _nfpm;
-        swapRouter2 = _swapRouter2;
 
         IERC20(address(_weth)).safeApprove(address(_nfpm), type(uint256).max);
-        IERC20(address(_weth)).safeApprove(_swapRouter2, type(uint256).max);
-    }
-
-    /// @notice Calls Uniswap Router 2 and swpas using calldata
-    /// @param _data Calldata generated from the uniswap smart order router
-    function swap(bytes calldata _data) external payable {
-      (bool success,) = swapRouter2.call(_data);
-
-      _require(success, ErrorCodes.FAIELD_TO_SWAP_USING_UNISWAP);
     }
 
     /// @notice Creates a new position wrapped in a NFT

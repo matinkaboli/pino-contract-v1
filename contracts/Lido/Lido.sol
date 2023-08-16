@@ -4,8 +4,8 @@ pragma abicoder v2;
 
 import "../Pino.sol";
 import "../interfaces/IWETH9.sol";
-import "../interfaces/Lido/ILido.sol";
-import "../interfaces/Lido/IWstETH.sol";
+import "../interfaces/Invest/ILido.sol";
+import "../interfaces/Invest/IWstETH.sol";
 
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 

@@ -53,10 +53,6 @@ pragma abicoder v2;
 /// @notice Mints and Increases liquidity and swaps tokens
 /// @dev This contract uses Permit2
 interface IUniswap {
-    /// @notice Calls Uniswap Router 2 and swpas using calldata
-    /// @param _data Calldata generated from the uniswap smart order router
-    function swap(bytes calldata _data) external payable;
-
     struct MintParams {
         uint24 fee;
         int24 tickLower;

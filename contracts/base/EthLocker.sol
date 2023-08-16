@@ -2,7 +2,7 @@
 pragma solidity 0.8.18;
 
 import "./Errors.sol";
-import "../helpers/ErrorCodes.sol";
+import "./ErrorCodes.sol";
 
 /// @title Handles ETH re-usabilitiy
 /// @author Pino Development Team
