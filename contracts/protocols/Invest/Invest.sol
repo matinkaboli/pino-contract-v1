@@ -2,18 +2,21 @@
 pragma solidity 0.8.18;
 pragma abicoder v2;
 
-import "../Pino.sol";
-import {IWETH9} from "../interfaces/IWETH9.sol";
-import {ISDai} from "../interfaces/Invest/ISDai.sol";
-import {ILido} from "../interfaces/Invest/ILido.sol";
-import {IWstETH} from "../interfaces/Invest/IWstETH.sol";
+import {Pino} from "../../base/Pino.sol";
+import {Permit2} from "../../Permit2/Permit2.sol";
+import {ISDai} from "../../interfaces/Invest/ISDai.sol";
+import {ILido} from "../../interfaces/Invest/ILido.sol";
+import {IWETH9} from "../../interfaces/token/IWETH9.sol";
+import {IWstETH} from "../../interfaces/Invest/IWstETH.sol";
+import {IInvest} from "../../interfaces/Invest/IInvest.sol";
+import {ISignatureTransfer} from "../../Permit2/ISignatureTransfer.sol";
 
 /**
  * @title Invest proxy contract
  * @author Pino development team
  * @notice Invests users tokens into Lido, Compound, Aave, and SavingsDai
  */
-contract Invest is Pino {
+contract Invest is IInvest, Pino {
     ISDai public immutable SDai;
     ILido public immutable StETH;
     IWstETH public immutable WstETH;
@@ -78,7 +81,7 @@ contract Invest is Pino {
         _sendETH(address(WstETH), msg.value - _proxyFeeInWei);
 
         // Transfer WstETH tokens to the recipient
-        sweepToken(address(WstETH), _recipient);
+        sweepToken(WstETH, _recipient);
     }
 
     /**
@@ -129,7 +132,7 @@ contract Invest is Pino {
         _sendETH(address(WstETH), _permit.permitted.amount);
 
         // Transfer WstETH tokens to the recipient
-        sweepToken(address(WstETH), _recipient);
+        sweepToken(WstETH, _recipient);
     }
 
     /**
@@ -142,7 +145,7 @@ contract Invest is Pino {
         WstETH.wrap(_amount);
 
         // Transfer WstETH tokens to the recipient
-        sweepToken(address(WstETH), _recipient);
+        sweepToken(WstETH, _recipient);
     }
 
     /**

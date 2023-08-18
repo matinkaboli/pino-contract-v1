@@ -2,7 +2,13 @@
 pragma solidity 0.8.18;
 pragma abicoder v2;
 
-import {IVault, IAsset} from "./IVault.sol";
+import {Pino} from "../../base/Pino.sol";
+import {Permit2} from "../../Permit2/Permit2.sol";
+import {SafeERC20} from "../../libraries/SafeERC20.sol";
+import {IERC20} from "../../interfaces/token/IERC20.sol";
+import {IWETH9} from "../../interfaces/token/IWETH9.sol";
+import {IVault} from "../../interfaces/Balancer/IVault.sol";
+import {IBalancer} from "../../interfaces/Balancer/IBalancer.sol";
 
 /**
  * @title Balancer proxy contract
@@ -10,13 +16,20 @@ import {IVault, IAsset} from "./IVault.sol";
  * @notice Deposits and Withdraws ERC20/ETH tokens to the vault and handles swap functions
  * @dev This contract uses Permit2
  */
-interface IBalancer {
-    struct JoinPoolParams {
-        bytes32 poolId;
-        bytes userData;
-        IAsset[] assets;
-        address recipient;
-        uint256[] maxAmountsIn;
+contract Balancer is IBalancer, Pino {
+    using SafeERC20 for IERC20;
+
+    IVault public immutable Vault;
+
+    /**
+     * @notice Sets Balancer Vault address and approves assets to it
+     * @param _permit2 Permit2 contract address
+     * @param _vault Balancer Vault contract address
+     */
+    constructor(Permit2 _permit2, IWETH9 _weth, IVault _vault) Pino(_permit2, _weth) {
+        Vault = _vault;
+
+        _weth.approve(address(_vault), type(uint256).max);
     }
 
     /**
@@ -45,14 +58,15 @@ interface IBalancer {
      *
      * emits a `poolbalancechanged` event.
      */
-    function joinPool(JoinPoolParams calldata _params) external payable;
+    function joinPool(IBalancer.JoinPoolParams calldata _params) public payable {
+        IVault.JoinPoolRequest memory poolRequest = IVault.JoinPoolRequest({
+            assets: _params.assets,
+            userData: _params.userData,
+            fromInternalBalance: false,
+            maxAmountsIn: _params.maxAmountsIn
+        });
 
-    struct ExitPoolParams {
-        bytes32 poolId;
-        bytes userData;
-        IAsset[] assets;
-        address recipient;
-        uint256[] minAmountsOut;
+        Vault.joinPool(_params.poolId, address(this), _params.recipient, poolRequest);
     }
 
     /**
@@ -90,17 +104,15 @@ interface IBalancer {
      *
      * Emits a `PoolBalanceChanged` event.
      */
-    function exitPool(ExitPoolParams calldata _params) external payable;
+    function exitPool(IBalancer.ExitPoolParams calldata _params) external payable {
+        IVault.ExitPoolRequest memory exitRequest = IVault.ExitPoolRequest({
+            assets: _params.assets,
+            toInternalBalance: false,
+            userData: _params.userData,
+            minAmountsOut: _params.minAmountsOut
+        });
 
-    struct SwapParams {
-        bytes32 poolId;
-        IAsset assetIn;
-        IAsset assetOut;
-        uint256 limit;
-        uint256 amount;
-        bytes userData;
-        address recipient;
-        IVault.SwapKind kind;
+        Vault.exitPool(_params.poolId, address(this), payable(_params.recipient), exitRequest);
     }
 
     /**
@@ -116,14 +128,24 @@ interface IBalancer {
      *
      * Emits a `Swap` event.
      */
-    function swap(SwapParams calldata _params) external payable;
+    function swap(IBalancer.SwapParams calldata _params) external payable {
+        IVault.SingleSwap memory singleSwap = IVault.SingleSwap({
+            kind: _params.kind,
+            amount: _params.amount,
+            poolId: _params.poolId,
+            assetIn: _params.assetIn,
+            assetOut: _params.assetOut,
+            userData: _params.userData
+        });
 
-    struct BatchSwapParams {
-        IAsset[] assets;
-        int256[] limits;
-        address recipient;
-        IVault.SwapKind kind;
-        IVault.BatchSwapStep[] swaps;
+        IVault.FundManagement memory funds = IVault.FundManagement({
+            sender: address(this),
+            toInternalBalance: false,
+            fromInternalBalance: false,
+            recipient: payable(_params.recipient)
+        });
+
+        Vault.swap(singleSwap, funds, _params.limit, block.timestamp);
     }
 
     /**
@@ -155,5 +177,14 @@ interface IBalancer {
      *
      * Emits `Swap` events.
      */
-    function batchSwap(IBalancer.BatchSwapParams calldata _params) external payable;
+    function batchSwap(IBalancer.BatchSwapParams calldata _params) public payable {
+        IVault.FundManagement memory funds = IVault.FundManagement({
+            sender: address(this),
+            toInternalBalance: false,
+            fromInternalBalance: false,
+            recipient: payable(_params.recipient)
+        });
+
+        Vault.batchSwap(_params.kind, _params.swaps, _params.assets, funds, _params.limits, block.timestamp);
+    }
 }

@@ -48,17 +48,20 @@
 pragma solidity 0.8.18;
 pragma abicoder v2;
 
-import "../Pino.sol";
-import "../interfaces/IWETH9.sol";
-import "../interfaces/Uniswap/IUniswap.sol";
-import "../interfaces/Uniswap/INonfungiblePositionManager.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import {Pino} from "../../base/Pino.sol";
+import {Permit2} from "../../Permit2/Permit2.sol";
+import {SafeERC20} from "../../libraries/SafeERC20.sol";
+import {IWETH9} from "../../interfaces/token/IWETH9.sol";
+import {IERC20} from "../../interfaces/token/IERC20.sol";
+import {IUniswap} from "../../interfaces/Uniswap/IUniswap.sol";
+import {INonfungiblePositionManager} from "../../interfaces/Uniswap/INonfungiblePositionManager.sol";
 
-/// @title UniswapV3 proxy contract
-/// @author Pino Development Team
-/// @notice Mints and Increases liquidity and swaps tokens
-/// @dev This contract uses Permit2
+/**
+ * @title UniswapV3 proxy contract
+ * @author Pino development team
+ * @notice Mints and Increases liquidity and swaps tokens
+ * @dev This contract uses Permit2
+ */
 contract Uniswap is IUniswap, Pino {
     using SafeERC20 for IERC20;
 
@@ -66,27 +69,33 @@ contract Uniswap is IUniswap, Pino {
 
     INonfungiblePositionManager public immutable nfpm;
 
+    /**
+     * @notice Sets addresses of Permit2, WETH9, and Uniswap INonfungiblePositionManager
+     */
     constructor(Permit2 _permit2, IWETH9 _weth, INonfungiblePositionManager _nfpm) Pino(_permit2, _weth) {
         nfpm = _nfpm;
 
-        IERC20(address(_weth)).safeApprove(address(_nfpm), type(uint256).max);
+        _weth.approve(address(_nfpm), type(uint256).max);
     }
 
-    /// @notice Creates a new position wrapped in a NFT
-    /// @param _params The params necessary to mint a new position
-    /// fee Fee of the uniswap pool. For example, 0.01% = 100
-    /// tickLower The lower tick in the range
-    /// tickUpper The upper tick in the range
-    /// token0 Token0 address
-    /// token1 Token1 address
-    /// amount0Min Minimum amount of the first token to receive
-    /// amount1Min Minimum amount of the second token to receive
-    /// amount0Desired Maximum amount of token0 that will be used in mint
-    /// amount1Desired Maximum amount of token1 that will be used in mint
-    /// @return tokenId The id of the newly minted ERC721
-    /// @return liquidity The amount of liquidity for the position
-    /// @return amount0 The amount of token0
-    /// @return amount1 The amount of token1
+    /**
+     * @notice Creates a new position wrapped in a NFT
+     * @param _params The params necessary to mint a new position
+     * fee Fee of the uniswap pool. For example, 0.01% = 100
+     * tickLower The lower tick in the range
+     * tickUpper The upper tick in the range
+     * token0 Token0 address
+     * token1 Token1 address
+     * recipient The destination address that will receive the NFT
+     * amount0Min Minimum amount of the first token to receive
+     * amount1Min Minimum amount of the second token to receive
+     * amount0Desired Maximum amount of token0 that will be used in mint
+     * amount1Desired Maximum amount of token1 that will be used in mint
+     * @return tokenId The id of the newly minted ERC721
+     * @return liquidity The amount of liquidity for the position
+     * @return amount0 The amount of token0
+     * @return amount1 The amount of token1
+     */
     function mint(IUniswap.MintParams calldata _params)
         external
         payable
@@ -102,26 +111,26 @@ contract Uniswap is IUniswap, Pino {
             amount1Desired: _params.amount1Desired,
             amount0Min: _params.amount0Min,
             amount1Min: _params.amount1Min,
-            recipient: msg.sender,
+            recipient: _params.recipient,
             deadline: block.timestamp
         });
 
+        // Mint an NFT token for the recipient
         (tokenId, liquidity, amount0, amount1) = nfpm.mint(mintParams);
-
-        nfpm.sweepToken(_params.token0, 0, msg.sender);
-        nfpm.sweepToken(_params.token1, 0, msg.sender);
 
         emit Mint(tokenId);
     }
 
-    /// @notice Increases liquidity in the current range
-    /// @param _params The params necessary to increase liquidity in a uniswap position
-    /// @dev Pool must be initialized already to add liquidity
-    /// tokenId The id of the erc721 token
-    /// amountAdd0 The amount to add of token0
-    /// amountAdd1 The amount to add of token1
-    /// amount0Min Minimum amount of the first token to receive
-    /// amount1Min Minimum amount of the second token to receive
+    /**
+     * @notice Increases liquidity in the current range
+     * @param _params The params necessary to increase liquidity in a uniswap position
+     * @dev Pool must be initialized already to add liquidity
+     * tokenId The id of the erc721 token
+     * amountAdd0 The amount to add of token0
+     * amountAdd1 The amount to add of token1
+     * amount0Min Minimum amount of the first token to receive
+     * amount1Min Minimum amount of the second token to receive
+     */
     function increaseLiquidity(IUniswap.IncreaseLiquidityParams calldata _params)
         external
         payable
@@ -138,8 +147,5 @@ contract Uniswap is IUniswap, Pino {
         });
 
         (liquidity, amount0, amount1) = nfpm.increaseLiquidity(increaseParams);
-
-        nfpm.sweepToken(_params.token0, 0, msg.sender);
-        nfpm.sweepToken(_params.token1, 0, msg.sender);
     }
 }

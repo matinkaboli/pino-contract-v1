@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.18;
+pragma solidity 0.8.18;
 
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "../token/IERC20.sol";
 
+/**
+ * @notice Compound V3's Comet interface
+ */
 interface IComet is IERC20 {
     function allow(address manager, bool isAllowed) external;
     function isAllowed(address owner, address manager) external view returns (bool);

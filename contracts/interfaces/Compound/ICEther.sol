@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.18;
+pragma solidity 0.8.18;
 
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "../token/IERC20.sol";
 
+/**
+ * @notice Compound V2's cEther interface
+ */
 interface ICEther is IERC20 {
     function mint() external payable;
     function redeem(uint256 redeemTokens) external returns (uint256);
