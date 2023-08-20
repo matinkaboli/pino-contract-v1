@@ -45,17 +45,17 @@ contract Compound is ICompound, Pino {
         // Approve WETH to the Comet protocol
         _weth.approve(address(_comet), type(uint256).max);
 
-        // for (uint8 i = 0; i < _tokens.length;) {
-        //     // Set allowance for cTokens to spend ERC20 tokens
-        //     _tokens[i].approve(_cTokens[i], type(uint256).max);
-        //
-        //     // Set allowance for Comet to spend ERC20 tokens
-        //     _tokens[i].approve(address(_comet), type(uint256).max);
-        //
-        //     unchecked {
-        //         ++i;
-        //     }
-        // }
+        for (uint8 i = 0; i < _tokens.length;) {
+            // Set allowance for cTokens to spend ERC20 tokens
+            _tokens[i].approve(_cTokens[i], type(uint256).max);
+
+            // Set allowance for Comet to spend ERC20 tokens
+            _tokens[i].approve(address(_comet), type(uint256).max);
+
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     /**
@@ -95,7 +95,7 @@ contract Compound is ICompound, Pino {
         bytes calldata _signature,
         address _recipient
     ) external payable {
-      // Transfer WETH to the proxy contract
+        // Transfer WETH to the proxy contract
         permitTransferFrom(_permit, _signature);
 
         // Unwrap WETH to ETH
