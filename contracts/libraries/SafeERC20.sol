@@ -48,6 +48,7 @@ library SafeERC20 {
      */
     function safeIncreaseAllowance(IERC20 token, address spender, uint256 value) internal {
         uint256 oldAllowance = token.allowance(address(this), spender);
+
         forceApprove(token, spender, oldAllowance + value);
     }
 

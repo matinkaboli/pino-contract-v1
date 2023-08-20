@@ -1,4 +1,3 @@
-import BN from 'bignumber.js';
 import { ethers } from 'ethers';
 
 const generatePath = (

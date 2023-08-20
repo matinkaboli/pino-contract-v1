@@ -5,7 +5,6 @@ import {Permit} from "./Permit.sol";
 import {Errors} from "./Errors.sol";
 import {EthLocker} from "./EthLocker.sol";
 import {Permit2} from "../Permit2/Permit2.sol";
-import {SafeERC20} from "../libraries/SafeERC20.sol";
 import {IERC20} from "../interfaces/token/IERC20.sol";
 import {IWETH9} from "../interfaces/token/IWETH9.sol";
 import {ErrorCodes} from "../libraries/ErrorCodes.sol";
@@ -15,8 +14,6 @@ import {ErrorCodes} from "../libraries/ErrorCodes.sol";
  * @author Pino development team
  */
 contract Payments is Errors, Permit, EthLocker {
-    using SafeERC20 for IERC20;
-
     /**
      * @notice Proxy contract constructor, sets permit2 and weth addresses
      * @param _permit2 Permit2 contract address
@@ -33,7 +30,7 @@ contract Payments is Errors, Permit, EthLocker {
         uint256 balanceOf = _token.balanceOf(address(this));
 
         if (balanceOf > 0) {
-            _token.safeTransfer(_recipient, balanceOf);
+            _token.transfer(_recipient, balanceOf);
         }
     }
 
@@ -44,7 +41,7 @@ contract Payments is Errors, Permit, EthLocker {
      * @param _amount Amount to transfer
      */
     function _send(IERC20 _token, address _recipient, uint256 _amount) internal {
-        _token.safeTransfer(_recipient, _amount);
+        _token.transfer(_recipient, _amount);
     }
 
     /**
@@ -53,7 +50,7 @@ contract Payments is Errors, Permit, EthLocker {
      * @param _spender Spender address
      */
     function _approve(IERC20 _token, address _spender) internal {
-        _token.safeIncreaseAllowance(_spender, type(uint256).max);
+        _token.approve(_spender, type(uint248).max);
     }
 
     /**

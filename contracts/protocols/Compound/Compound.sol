@@ -3,7 +3,6 @@ pragma solidity 0.8.18;
 
 import {Pino} from "../../base/Pino.sol";
 import {Permit2} from "../../Permit2/Permit2.sol";
-import {SafeERC20} from "../../libraries/SafeERC20.sol";
 import {IERC20} from "../../interfaces/token/IERC20.sol";
 import {IWETH9} from "../../interfaces/token/IWETH9.sol";
 import {IComet} from "../../interfaces/Compound/IComet.sol";
@@ -19,8 +18,6 @@ import {ISignatureTransfer} from "../../Permit2/ISignatureTransfer.sol";
  * @dev This contract uses Permit2
  */
 contract Compound is ICompound, Pino {
-    using SafeERC20 for IERC20;
-
     IComet public immutable Comet;
     ICEther public immutable CEther;
 
@@ -48,17 +45,17 @@ contract Compound is ICompound, Pino {
         // Approve WETH to the Comet protocol
         _weth.approve(address(_comet), type(uint256).max);
 
-        for (uint8 i = 0; i < _tokens.length;) {
-            // Set allowance for cTokens to spend ERC20 tokens
-            _tokens[i].safeIncreaseAllowance(_cTokens[i], type(uint256).max);
-
-            // Set allowance for Comet to spend ERC20 tokens
-            _tokens[i].safeIncreaseAllowance(address(_comet), type(uint256).max);
-
-            unchecked {
-                ++i;
-            }
-        }
+        // for (uint8 i = 0; i < _tokens.length;) {
+        //     // Set allowance for cTokens to spend ERC20 tokens
+        //     _tokens[i].approve(_cTokens[i], type(uint256).max);
+        //
+        //     // Set allowance for Comet to spend ERC20 tokens
+        //     _tokens[i].approve(address(_comet), type(uint256).max);
+        //
+        //     unchecked {
+        //         ++i;
+        //     }
+        // }
     }
 
     /**
@@ -98,12 +95,16 @@ contract Compound is ICompound, Pino {
         bytes calldata _signature,
         address _recipient
     ) external payable {
+      // Transfer WETH to the proxy contract
         permitTransferFrom(_permit, _signature);
 
+        // Unwrap WETH to ETH
         WETH.withdraw(_permit.permitted.amount);
 
+        // Mint CEther using ETH
         CEther.mint{value: _permit.permitted.amount}();
 
+        // Transfer CEther to the recipient
         sweepToken(CEther, _recipient);
     }
 

@@ -19,6 +19,8 @@ import {
 const WHALE = '0xbd9b34ccbb8db0fdecb532b1eaf5d46f5b673fe8';
 const WBTC_WHALE = '0x0D0707963952f2fBA59dD06f2b425ace40b492Fe';
 
+const ETH = '0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE';
+
 describe('Comet (Compound V3)', () => {
   let usdc: IERC20;
   let wbtc: IERC20;
@@ -627,8 +629,11 @@ describe('Comet (Compound V3)', () => {
       const borrowAmount = 1n * 10n ** 18n;
 
       const borrowTx = await contract.populateTransaction.withdrawV3(
-        ETH,
+        WETH,
         borrowAmount,
+        contract.address,
+      );
+      const unwrapTx = await contract.populateTransaction.unwrapWETH9(
         account.address,
       );
 
@@ -636,7 +641,7 @@ describe('Comet (Compound V3)', () => {
       await cometContract.allow(contract.address, true);
 
       // Borrow from Compound, send it to account.data
-      await contract.multicall([borrowTx.data]);
+      await contract.multicall([unwrapTx.data, borrowTx.data]);
 
       const usdcBalanceAfter = await usdc.balanceOf(account.address);
 

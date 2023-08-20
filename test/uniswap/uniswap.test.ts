@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
-import { TradeType } from '@uniswap/sdk-core';
 import { PERMIT2_ADDRESS } from '@uniswap/permit2-sdk';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';

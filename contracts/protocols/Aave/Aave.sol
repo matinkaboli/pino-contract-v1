@@ -4,7 +4,6 @@ pragma solidity 0.8.18;
 import {Pino} from "../../base/Pino.sol";
 import {Permit2} from "../../Permit2/Permit2.sol";
 import {IAave} from "../../interfaces/Aave/IAave.sol";
-import {SafeERC20} from "../../libraries/SafeERC20.sol";
 import {IWETH9} from "../../interfaces/token/IWETH9.sol";
 import {IERC20} from "../../interfaces/token/IERC20.sol";
 import {IWethGateway} from "../../interfaces/Aave/IWethGateway.sol";
@@ -18,8 +17,6 @@ import {ILendingPoolV3} from "../../interfaces/Aave/ILendingPoolV3.sol";
  * @dev This contract uses Permit2
  */
 contract Aave is IAave, Pino {
-    using SafeERC20 for IERC20;
-
     IWethGateway public wethGateway;
     ILendingPoolV2 public lendingPoolV2;
     ILendingPoolV3 public lendingPoolV3;

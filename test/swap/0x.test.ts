@@ -19,6 +19,7 @@ import { impersonate, signer } from '../utils/helpers';
 const API_QUOTE_URL = 'https://api.0x.org/swap/v1/quote';
 const OneInchV5 = '0x1111111254EEB25477B68fb85Ed929f73A960582';
 const Paraswap = '0x55b916ce078ea594c10a874ba67ecc3d62e29822';
+const ZERO_X_ADDRESS = '0xdef1c0ded9bec7f1a1670819833240f027b25eff';
 
 describe('0x', () => {
   let dai: IERC20;
@@ -108,8 +109,7 @@ describe('0x', () => {
         (y) => y.json(),
       );
 
-      await contract.approveToken(USDC, [quote.allowanceTarget]);
-
+      await contract.approveToken(USDC, [ZERO_X_ADDRESS]);
       const { signature, permit } = await sign(
         {
           amount,
@@ -162,8 +162,6 @@ describe('0x', () => {
         (y) => y.json(),
       );
 
-      await contract.approveToken(USDT, [quote.allowanceTarget]);
-
       const { signature, permit } = await sign(
         {
           amount,
@@ -173,6 +171,11 @@ describe('0x', () => {
       );
 
       const daiBalanceBefore = await weth.balanceOf(account.address);
+
+      const approveTx =
+        await contract.populateTransaction.approveToken(USDT, [
+          ZERO_X_ADDRESS,
+        ]);
 
       const permitTx =
         await contract.populateTransaction.permitTransferFrom(
@@ -191,6 +194,7 @@ describe('0x', () => {
       );
 
       await contract.multicall([
+        approveTx.data,
         permitTx.data,
         swapTx.data,
         sweepTx.data,
