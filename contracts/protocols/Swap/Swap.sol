@@ -12,52 +12,37 @@ import {ErrorCodes} from "../../libraries/ErrorCodes.sol";
  * @title Swap Proxy contract
  * @author Pino development team
  * @notice Swaps tokens and send the new token to the recipient
- * @dev This contract uses Permit2 and supports 1Inch, 0x, Paraswap, Uniswap, Balancer, and Curve
+ * @dev This contract uses Permit2 and supports 1Inch, 0x, Paraswap
  */
 contract Swap is ISwap, Pino {
     // Addresses of swap protocols
     address public ZeroX;
-    address public Curve;
     address public OneInch;
-    address public Uniswap;
     address public Paraswap;
-    address public Balancer;
 
     /**
      * @notice Sets protocol addresses and approves WETH to them
      * @param _permit2 Permit2 contract address
      * @param _weth WETH9 contract address
      * @param _zeroX 0x contract address
-     * @param _curve CurveSwap contract address
      * @param _oneInch 1Inch contract address
-     * @param _uniswap Uniswap SWAP_ROUTER_2
      * @param _paraswap Paraswap contract address
-     * @param _balancer Balancer contract address
      */
     constructor(
         Permit2 _permit2,
         IWETH9 _weth,
         address _zeroX,
-        address _curve,
         address _oneInch,
-        address _uniswap,
-        address _paraswap,
-        address _balancer
+        address _paraswap
     ) Pino(_permit2, _weth) {
         ZeroX = _zeroX;
-        Curve = _curve;
         OneInch = _oneInch;
-        Uniswap = _uniswap;
         Paraswap = _paraswap;
-        Balancer = _balancer;
 
         // Approve WETH9 to all of them
         _weth.approve(_zeroX, type(uint256).max);
-        _weth.approve(_curve, type(uint256).max);
         _weth.approve(_oneInch, type(uint256).max);
-        _weth.approve(_uniswap, type(uint256).max);
         _weth.approve(_paraswap, type(uint256).max);
-        _weth.approve(_balancer, type(uint256).max);
     }
 
     /**
@@ -78,17 +63,6 @@ contract Swap is ISwap, Pino {
         (bool success,) = OneInch.call(_calldata);
 
         _require(success, ErrorCodes.FAIELD_TO_SWAP_USING_1INCH);
-    }
-
-    /*
-    * @notice Swaps using Uniswap protocol
-    * @param _calldata Uniswap protocol calldata from SDK
-    * @dev Uniswap contract points to SWAP_ROUTER_2
-    */
-    function swapUniswap(bytes calldata _calldata) external payable {
-        (bool success,) = Uniswap.call(_calldata);
-
-        _require(success, ErrorCodes.FAIELD_TO_SWAP_USING_UNISWAP);
     }
 
     /*

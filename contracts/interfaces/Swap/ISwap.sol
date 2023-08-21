@@ -21,13 +21,6 @@ interface ISwap {
     function swapOneInch(bytes calldata _calldata) external payable;
 
     /**
-     * @notice Swaps using Uniswap protocol
-     * @param _calldata Uniswap protocol calldata from SDK
-     * @dev Uniswap contract points to SWAP_ROUTER_2
-     */
-    function swapUniswap(bytes calldata _calldata) external payable;
-
-    /**
      * @notice Swaps using Paraswap protocol
      * @param _calldata Paraswap protocol calldata from API
      */

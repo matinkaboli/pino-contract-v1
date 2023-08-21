@@ -27,35 +27,18 @@ contract Compound is ICompound, Pino {
      * @param _weth Address of WETH9 contract
      * @param _comet Address of CompoundV3 (comet) contract
      * @param _cEther Address of Compound V2 CEther
-     * @param _tokens List of ERC20 tokens used in Compound V2
-     * @param _cTokens List of ERC20 cTokens used in Compound V2
-     * @dev Do not put WETH and cEther addresses among _tokens or _cTokens
      */
     constructor(
         Permit2 _permit2,
         IWETH9 _weth,
         IComet _comet,
-        ICEther _cEther,
-        IERC20[] memory _tokens,
-        address[] memory _cTokens
+        ICEther _cEther
     ) Pino(_permit2, _weth) {
         Comet = _comet;
         CEther = _cEther;
 
         // Approve WETH to the Comet protocol
         _weth.approve(address(_comet), type(uint256).max);
-
-        for (uint8 i = 0; i < _tokens.length;) {
-            // Set allowance for cTokens to spend ERC20 tokens
-            _tokens[i].approve(_cTokens[i], type(uint256).max);
-
-            // Set allowance for Comet to spend ERC20 tokens
-            _tokens[i].approve(address(_comet), type(uint256).max);
-
-            unchecked {
-                ++i;
-            }
-        }
     }
 
     /**
