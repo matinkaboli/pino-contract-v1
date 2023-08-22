@@ -1,9 +1,9 @@
 const {
   PERMIT2,
-  mainnet,
+  arbitrum,
   ONE_INCH,
   PARASWAP,
   ZERO_X,
 } = require('../commonAddresses');
 
-module.exports = [PERMIT2, mainnet.WETH, ONE_INCH, PARASWAP, ZERO_X];
+module.exports = [PERMIT2, arbitrum.WETH, ZERO_X, ONE_INCH, PARASWAP];
