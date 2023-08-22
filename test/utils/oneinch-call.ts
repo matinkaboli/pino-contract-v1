@@ -1,18 +1,13 @@
-// import fetch from 'node-fetch';
-
 export interface SwapParams {
-  amount: string;
-  slippage: number;
-  fromAddress: string;
-  destReceiver: string;
-  toTokenAddress: string;
-  fromTokenAddress: string;
-  disableEstimate: boolean;
-  allowPartialFill: boolean;
+  src: string; // tokenIn address
+  dst: string; // tokenOut address
+  amount: string; // Amount must have tokenIn's decimals
+  receiver: string; // The address that will receive tokenOut
 }
 
 const chainId = 1;
-const apiBaseUrl = `https://api.1inch.io/v5.0/${chainId}`;
+const apiKey = process.env.ONE_INCH_API_KEY;
+const apiBaseUrl = `https://api.1inch.dev/swap/v5.2/${chainId}`;
 
 const apiRequestUrl = (methodName: string, queryParams: SwapParams) =>
   `${apiBaseUrl + methodName}?${new URLSearchParams(
@@ -20,9 +15,23 @@ const apiRequestUrl = (methodName: string, queryParams: SwapParams) =>
   ).toString()}`;
 
 export const swapQuery = async (swapParams: SwapParams) => {
-  const url = apiRequestUrl('/swap', swapParams);
+  const params = {
+    ...swapParams,
+    slippage: 1,
+    from: swapParams.src,
+    disableEstimate: true,
+    allowPartialFill: true,
+  };
 
-  const result = await fetch(url).then((res) => res.json());
+  const url = apiRequestUrl('/swap', params);
+
+  const result = await fetch(url, {
+    method: 'GET',
+    headers: {
+      accept: 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+  }).then((res) => res.json());
 
   return result;
 };

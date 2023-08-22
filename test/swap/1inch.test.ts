@@ -15,10 +15,12 @@ import { IERC20, IWETH9 } from '../../typechain-types';
 import { impersonate, signer } from '../utils/helpers';
 import { swapQuery } from '../utils/oneinch-call';
 
-const OneInchV5 = '0x1111111254EEB25477B68fb85Ed929f73A960582';
-const Paraswap = '0x55b916ce078ea594c10a874ba67ecc3d62e29822';
+const ZERO_X_ADDRESS = '0xdef1c0ded9bec7f1a1670819833240f027b25eff';
+const ONE_INCH_V5_ADDRESS =
+  '0x1111111254EEB25477B68fb85Ed929f73A960582';
+const PARASWAP_ADDRESS = '0x55b916ce078ea594c10a874ba67ecc3d62e29822';
 
-describe('1Inch', () => {
+describe('1Inch - Swap', () => {
   let dai: IERC20;
   let usdc: IERC20;
   let usdt: IERC20;
@@ -27,21 +29,15 @@ describe('1Inch', () => {
   let otherAccount: SignerWithAddress;
 
   const deploy = async () => {
-    const OneInch = await ethers.getContractFactory(
-      'SwapAggregators',
-    );
+    const Swap = await ethers.getContractFactory('Swap');
 
-    const contract = await OneInch.deploy(
+    const contract = await Swap.deploy(
       PERMIT2_ADDRESS,
       WETH,
-      OneInchV5,
-      Paraswap,
+      ZERO_X_ADDRESS,
+      ONE_INCH_V5_ADDRESS,
+      PARASWAP_ADDRESS,
     );
-
-    await contract.approveToken(DAI, [OneInchV5]);
-    await contract.approveToken(WETH, [OneInchV5]);
-    await contract.approveToken(USDC, [OneInchV5]);
-    await contract.approveToken(USDT, [OneInchV5]);
 
     return { contract, sign: await signer(account) };
   };
@@ -79,34 +75,29 @@ describe('1Inch', () => {
 
   describe('Deployment', () => {
     it('Should deploy with 0 tokens', async () => {
-      const SwapAgg = await ethers.getContractFactory(
-        'SwapAggregators',
-      );
+      const Swap = await ethers.getContractFactory('Swap');
 
-      await SwapAgg.deploy(
+      await Swap.deploy(
         PERMIT2_ADDRESS,
         WETH,
-        OneInchV5,
-        Paraswap,
+        ZERO_X_ADDRESS,
+        ONE_INCH_V5_ADDRESS,
+        PARASWAP_ADDRESS,
       );
     });
   });
 
   describe('Swap', () => {
-    it('Should swap USDC for DAI', async () => {
+    it('Should swap USDC to DAI', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
       const amount = 5n * 10n ** 6n;
 
       const swapParams = {
-        fromTokenAddress: USDC,
-        toTokenAddress: DAI,
-        destReceiver: account.address,
+        src: USDC,
+        dst: DAI,
+        receiver: account.address,
         amount: amount.toString(),
-        fromAddress: '0x1E7A7Bb102c04e601dE48a68A88Ec6EE59C372b9',
-        slippage: 1,
-        disableEstimate: false,
-        allowPartialFill: false,
       };
 
       const query = await swapQuery(swapParams);
@@ -121,24 +112,32 @@ describe('1Inch', () => {
 
       const daiBalanceBefore = await dai.balanceOf(account.address);
 
+      const approveTx =
+        await contract.populateTransaction.approveToken(USDC, [
+          ONE_INCH_V5_ADDRESS,
+        ]);
       const permitTx =
         await contract.populateTransaction.permitTransferFrom(
           permit,
           signature,
         );
 
-      const swapTx = await contract.populateTransaction.swap1Inch(
+      const swapTx = await contract.populateTransaction.swapOneInch(
         query.tx.data,
       );
 
-      await contract.multicall([permitTx.data, swapTx.data]);
+      await contract.multicall([
+        approveTx.data,
+        permitTx.data,
+        swapTx.data,
+      ]);
 
       expect(await dai.balanceOf(account.address)).to.gt(
         daiBalanceBefore,
       );
     });
 
-    it('Should swap ETH', async () => {
+    it('Should swap ETH to USDC', async () => {
       const { contract } = await loadFixture(deploy);
 
       const amount = 1n * 10n ** 15n;
@@ -146,23 +145,22 @@ describe('1Inch', () => {
       const usdcBalanceBefore = await usdc.balanceOf(account.address);
 
       const swapParams = {
-        fromTokenAddress: WETH,
-        toTokenAddress: USDC,
-        destReceiver: account.address,
+        src: WETH,
+        dst: USDC,
+        receiver: account.address,
         amount: amount.toString(),
-        fromAddress: '0x1E7A7Bb102c04e601dE48a68A88Ec6EE59C372b9',
-        slippage: 1,
       };
 
       const query = await swapQuery(swapParams);
 
       const wrapTx = await contract.populateTransaction.wrapETH(0);
-
-      const swapTx = await contract.populateTransaction.swap1Inch(
+      const swapTx = await contract.populateTransaction.swapOneInch(
         query.tx.data,
       );
 
-      await contract.multicall([wrapTx.data, swapTx.data]);
+      await contract.multicall([wrapTx.data, swapTx.data], {
+        value: amount,
+      });
 
       expect(await usdc.balanceOf(account.address)).to.gt(
         usdcBalanceBefore,
@@ -177,9 +175,13 @@ describe('1Inch', () => {
       const new1InchAddress =
         '0xc6845a5c768bf8d7681249f8927877efda425baf';
 
-      await contract.setDexAddresses(new1InchAddress, Paraswap);
+      await contract.setNewAddresses(
+        new1InchAddress,
+        ZERO_X_ADDRESS,
+        PARASWAP_ADDRESS,
+      );
 
-      const OneInchAddress = await contract.OInch();
+      const OneInchAddress = await contract.OneInch();
 
       expect(OneInchAddress).to.hexEqual(new1InchAddress);
     });
@@ -193,8 +195,15 @@ describe('1Inch', () => {
       await expect(
         contract
           .connect(otherAccount)
-          .setDexAddresses(new1InchAddress, Paraswap),
-      ).to.be.revertedWith('Ownable: caller is not the owner');
+          .setNewAddresses(
+            new1InchAddress,
+            ZERO_X_ADDRESS,
+            PARASWAP_ADDRESS,
+          ),
+      ).to.be.revertedWithCustomError(
+        contract,
+        'OwnableUnauthorizedAccount',
+      );
     });
 
     it('Should withdraw money', async () => {
