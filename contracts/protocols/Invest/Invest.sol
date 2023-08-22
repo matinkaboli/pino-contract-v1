@@ -163,8 +163,9 @@ contract Invest is IInvest, Pino {
 
     /**
      * @notice Transfers DAI to SavingsDai and transfers SDai to the recipient
-     * @param _amount Amount of DAI to invest
-     * @param _recipient The destination address that will receive StETH
+     * @param _amount Amount of DAI to deposit
+     * @param _recipient The destination address that will receive SDAI
+     * @return Returns the amount of shares that recipient received after deposit
      */
     function daiToSDai(uint256 _amount, address _recipient) external payable returns (uint256) {
         // Uses the DAI inside the proxy contract to send to the SDai contract
@@ -173,6 +174,12 @@ contract Invest is IInvest, Pino {
         return deposited;
     }
 
+    /**
+     * @notice Transfers SDAI to SavingsDai and transfers Dai to the recipient
+     * @param _amount Amount of SDAI to withdraw
+     * @param _recipient The destination address that will receive DAI
+     * @return Returns the amount of shares that were burned
+     */
     function sDaiToDai(uint256 _amount, address _recipient) external payable returns (uint256) {
         uint256 withdrew = SDai.withdraw(_amount, _recipient, address(this));
 

@@ -28,12 +28,7 @@ contract Compound is ICompound, Pino {
      * @param _comet Address of CompoundV3 (comet) contract
      * @param _cEther Address of Compound V2 CEther
      */
-    constructor(
-        Permit2 _permit2,
-        IWETH9 _weth,
-        IComet _comet,
-        ICEther _cEther
-    ) Pino(_permit2, _weth) {
+    constructor(Permit2 _permit2, IWETH9 _weth, IComet _comet, ICEther _cEther) Pino(_permit2, _weth) {
         Comet = _comet;
         CEther = _cEther;
 

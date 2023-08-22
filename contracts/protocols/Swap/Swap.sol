@@ -28,13 +28,9 @@ contract Swap is ISwap, Pino {
      * @param _oneInch 1Inch contract address
      * @param _paraswap Paraswap contract address
      */
-    constructor(
-        Permit2 _permit2,
-        IWETH9 _weth,
-        address _zeroX,
-        address _oneInch,
-        address _paraswap
-    ) Pino(_permit2, _weth) {
+    constructor(Permit2 _permit2, IWETH9 _weth, address _zeroX, address _oneInch, address _paraswap)
+        Pino(_permit2, _weth)
+    {
         ZeroX = _zeroX;
         OneInch = _oneInch;
         Paraswap = _paraswap;
