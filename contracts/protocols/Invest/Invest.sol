@@ -172,4 +172,10 @@ contract Invest is IInvest, Pino {
 
         return deposited;
     }
+
+    function sDaiToDai(uint256 _amount, address _recipient) external payable returns (uint256) {
+        uint256 withdrew = SDai.withdraw(_amount, _recipient, address(this));
+
+        return withdrew;
+    }
 }
