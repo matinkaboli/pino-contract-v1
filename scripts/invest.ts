@@ -24,13 +24,13 @@ async function main() {
     (await account.getBalance()).toString(),
   );
 
-  const Lido = await ethers.getContractFactory('Lido');
+  const Invest = await ethers.getContractFactory('Invest');
 
-  const lido = await Lido.connect(account).deploy(...args);
+  const invest = await Invest.connect(account).deploy(...args);
 
-  await lido.deployed();
+  await invest.deployed();
 
-  console.log(`Lido proxy contract deployed to ${lido.address}`);
+  console.log(`Invest proxy contract deployed to ${invest.address}`);
 }
 
 main().catch((error) => {

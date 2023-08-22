@@ -25,15 +25,13 @@ async function main() {
     (await account.getBalance()).toString(),
   );
 
-  const SwapAgg = await ethers.getContractFactory('SwapAggregators');
+  const Swap = await ethers.getContractFactory('SwapAggregators');
 
-  const uniswap = await SwapAgg.connect(account).deploy(...args);
+  const swap = await Swap.connect(account).deploy(...args);
 
-  await uniswap.deployed();
+  await swap.deployed();
 
-  console.log(
-    `SwapAggregators proxy contract deployed to ${uniswap.address}`,
-  );
+  console.log(`Swap proxy contract deployed to ${swap.address}`);
 }
 
 main().catch((error) => {
