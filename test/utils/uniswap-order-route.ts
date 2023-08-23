@@ -1,9 +1,7 @@
 import JSBI from 'jsbi';
-import BN from 'bignumber.js';
 import { config } from 'dotenv';
 import { ethers } from 'ethers';
 import {
-  ChainId,
   SwapType,
   AlphaRouter,
   SwapOptionsSwapRouter02,
@@ -22,7 +20,7 @@ const provider = new ethers.providers.JsonRpcProvider(
 );
 
 const router = new AlphaRouter({
-  chainId: ChainId.MAINNET,
+  chainId: 1,
   provider,
 });
 
@@ -57,9 +55,6 @@ export const fromReadableAmount = (
     JSBI.BigInt(extraDigits),
   );
 };
-
-export const bigNumberToString = (num: BN): string =>
-  BigInt(Number(num.toString())).toString();
 
 export const uniswapRouteInput = async (
   recipient: string,

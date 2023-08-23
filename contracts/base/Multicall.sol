@@ -1,20 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.18;
 
-import "./EthLocker.sol";
+import {EthLocker} from "./EthLocker.sol";
 
-/// @title Handles multicall function
-/// @author Pino Development Team
+/**
+ * @title Handles multicall function
+ * @author Pino development team
+ */
 contract Multicall is EthLocker {
-    /// @notice Multiple calls on proxy functions
-    /// @param _data The destination address
-    function multicall(bytes[] calldata _data) public payable {
+    /**
+     * @notice Multiple calls on proxy functions
+     * @param _calldata The destination address
+     */
+    function multicall(bytes[] calldata _calldata) public payable {
+        // Unlock ether locker just in case if it was locked before
         unlockEth();
 
-        for (uint256 i = 0; i < _data.length;) {
-            (bool success, bytes memory result) = address(this).delegatecall(_data[i]);
+        // Loop through each calldata and execute them
+        for (uint256 i = 0; i < _calldata.length;) {
+            (bool success, bytes memory result) = address(this).delegatecall(_calldata[i]);
 
+            // Check if the call was successful or not
             if (!success) {
+                // Next 7 lines from https://ethereum.stackexchange.com/a/83577
                 if (result.length < 68) revert();
 
                 assembly {
@@ -24,11 +32,13 @@ contract Multicall is EthLocker {
                 revert(abi.decode(result, (string)));
             }
 
+            // Increment variable i more efficiently
             unchecked {
                 ++i;
             }
         }
 
+        // Unlock ether for future use
         unlockEth();
     }
 }

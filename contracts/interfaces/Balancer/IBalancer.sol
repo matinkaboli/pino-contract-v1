@@ -1,46 +1,49 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.18;
+pragma solidity 0.8.18;
 pragma abicoder v2;
 
-import "./IVault.sol";
+import {IVault, IAsset} from "./IVault.sol";
 
-/// @title Balancer proxy contract
-/// @author Pino Development Team
-/// @notice Deposits and Withdraws ERC20/ETH tokens to the vault and handles swap functions
-/// @dev This contract uses Permit2
+/**
+ * @title Balancer proxy contract
+ * @author Pino development team
+ * @notice Deposits and Withdraws ERC20/ETH tokens to the vault and handles swap functions
+ * @dev This contract uses Permit2
+ */
 interface IBalancer {
     struct JoinPoolParams {
         bytes32 poolId;
         bytes userData;
         IAsset[] assets;
+        address recipient;
         uint256[] maxAmountsIn;
     }
 
     /**
-     * @dev Called by users to join a Pool, which transfers tokens from `msg.sender` into the Pool's balance. This will
-     * trigger custom Pool behavior, which will typically grant something in return to `msg.sender` - often tokenized
-     * Pool shares.
+     * @dev called by users to join a pool, which transfers tokens from `msg.sender` into the pool's balance. this will
+     * trigger custom pool behavior, which will typically grant something in return to `msg.sender` - often tokenized
+     * pool shares.
      *
-     * The `assets` and `maxAmountsIn` arrays must have the same length, and each entry indicates the maximum amount
-     * to send for each asset. The amounts to send are decided by the Pool and not the Vault: it just enforces
+     * the `assets` and `maxamountsin` arrays must have the same length, and each entry indicates the maximum amount
+     * to send for each asset. the amounts to send are decided by the pool and not the vault: it just enforces
      * these maximums.
      *
-     * If joining a Pool that holds WETH, it is possible to send ETH directly: the Vault will do the wrapping. To enable
-     * this mechanism, the IAsset sentinel value (the zero address) must be passed in the `assets` array instead of the
-     * WETH address. Note that it is not possible to combine ETH and WETH in the same join. Any excess ETH will be sent
+     * if joining a pool that holds weth, it is possible to send eth directly: the vault will do the wrapping. to enable
+     * this mechanism, the iasset sentinel value (the zero address) must be passed in the `assets` array instead of the
+     * weth address. note that it is not possible to combine eth and weth in the same join. any excess eth will be sent
      * back to the caller (not the sender, which is important for relayers).
      *
-     * `assets` must have the same length and order as the array returned by `getPoolTokens`. This prevents issues when
-     * interacting with Pools that register and deregister tokens frequently. If sending ETH however, the array must be
-     * sorted *before* replacing the WETH address with the ETH sentinel value (the zero address), which means the final
-     * `assets` array might not be sorted. Pools with no registered tokens cannot be joined.
+     * `assets` must have the same length and order as the array returned by `getpooltokens`. this prevents issues when
+     * interacting with pools that register and deregister tokens frequently. if sending eth however, the array must be
+     * sorted *before* replacing the weth address with the eth sentinel value (the zero address), which means the final
+     * `assets` array might not be sorted. pools with no registered tokens cannot be joined.
      *
-     * This causes the Vault to call the `IBasePool.onJoinPool` hook on the Pool's contract, where Pools implement
-     * their own custom logic. This typically requires additional information from the user (such as the expected number
-     * of Pool shares). This can be encoded in the `userData` argument, which is ignored by the Vault and passed
-     * directly to the Pool's contract, as is `recipient`.
+     * this causes the vault to call the `ibasepool.onjoinpool` hook on the pool's contract, where pools implement
+     * their own custom logic. this typically requires additional information from the user (such as the expected number
+     * of pool shares). this can be encoded in the `userdata` argument, which is ignored by the vault and passed
+     * directly to the pool's contract, as is `recipient`.
      *
-     * Emits a `PoolBalanceChanged` event.
+     * emits a `poolbalancechanged` event.
      */
     function joinPool(JoinPoolParams calldata _params) external payable;
 
@@ -48,6 +51,7 @@ interface IBalancer {
         bytes32 poolId;
         bytes userData;
         IAsset[] assets;
+        address recipient;
         uint256[] minAmountsOut;
     }
 
@@ -95,6 +99,7 @@ interface IBalancer {
         uint256 limit;
         uint256 amount;
         bytes userData;
+        address recipient;
         IVault.SwapKind kind;
     }
 
@@ -116,6 +121,7 @@ interface IBalancer {
     struct BatchSwapParams {
         IAsset[] assets;
         int256[] limits;
+        address recipient;
         IVault.SwapKind kind;
         IVault.BatchSwapStep[] swaps;
     }

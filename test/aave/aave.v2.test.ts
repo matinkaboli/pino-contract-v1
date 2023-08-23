@@ -872,7 +872,10 @@ describe('Aave - V2', () => {
             newLendingPoolAddress,
             WETH_GATEWAY,
           ),
-      ).to.be.revertedWith('Ownable: caller is not the owner');
+      ).to.be.revertedWithCustomError(
+        contract,
+        'OwnableUnauthorizedAccount',
+      );
     });
 
     it('Should withdraw money', async () => {

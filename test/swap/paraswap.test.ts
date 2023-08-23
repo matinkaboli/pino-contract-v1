@@ -16,8 +16,12 @@ import paraswapCall from '../utils/paraswap-call';
 import { IERC20, IWETH9 } from '../../typechain-types';
 import { impersonate, signer } from '../utils/helpers';
 
-const OneInchV5 = '0x1111111254EEB25477B68fb85Ed929f73A960582';
-const Paraswap = '0x55b916ce078ea594c10a874ba67ecc3d62e29822';
+const ZERO_X_ADDRESS = '0xdef1c0ded9bec7f1a1670819833240f027b25eff';
+const ONE_INCH_V5_ADDRESS =
+  '0x1111111254EEB25477B68fb85Ed929f73A960582';
+const PARASWAP_ADDRESS = '0xDEF171Fe48CF0115B1d80b88dc8eAB59176FEe57';
+const PARASWAP_ALLOWANCE_ADDRESS =
+  '0x216b4b4ba9f3e719726886d34a177484278bfcae';
 
 describe('Paraswap', () => {
   let dai: IERC20;
@@ -28,21 +32,15 @@ describe('Paraswap', () => {
   let otherAccount: SignerWithAddress;
 
   const deploy = async () => {
-    const OneInch = await ethers.getContractFactory(
-      'SwapAggregators',
-    );
+    const Swap = await ethers.getContractFactory('Swap');
 
-    const contract = await OneInch.deploy(
+    const contract = await Swap.deploy(
       PERMIT2_ADDRESS,
       WETH,
-      OneInchV5,
-      Paraswap,
+      ZERO_X_ADDRESS,
+      ONE_INCH_V5_ADDRESS,
+      PARASWAP_ADDRESS,
     );
-
-    await contract.approveToken(DAI, [Paraswap]);
-    await contract.approveToken(WETH, [Paraswap]);
-    await contract.approveToken(USDC, [Paraswap]);
-    await contract.approveToken(USDT, [Paraswap]);
 
     return { contract, sign: await signer(account) };
   };
@@ -80,15 +78,14 @@ describe('Paraswap', () => {
 
   describe('Deployment', () => {
     it('Should deploy with 0 tokens', async () => {
-      const SwapAgg = await ethers.getContractFactory(
-        'SwapAggregators',
-      );
+      const Swap = await ethers.getContractFactory('Swap');
 
-      await SwapAgg.deploy(
+      await Swap.deploy(
         PERMIT2_ADDRESS,
         WETH,
-        OneInchV5,
-        Paraswap,
+        ZERO_X_ADDRESS,
+        ONE_INCH_V5_ADDRESS,
+        PARASWAP_ADDRESS,
       );
     });
   });
@@ -101,16 +98,16 @@ describe('Paraswap', () => {
       const amount = 100n * 10n ** 6n;
 
       const params = {
-        userAddress: '0x1E7A7Bb102c04e601dE48a68A88Ec6EE59C372b9',
-        receiver: contract.address,
-        destToken: DAI,
-        srcToken: token,
-        amount: amount.toString(),
+        srcToken: USDC,
         srcDecimals: 6,
+        destToken: DAI,
         destDecimals: 18,
+        amount: amount.toString(),
+        receiver: account.address,
+        userAddress: contract.address,
       };
 
-      const data = await paraswapCall(params);
+      const result = await paraswapCall(params);
 
       const { signature, permit } = await sign(
         {
@@ -121,18 +118,32 @@ describe('Paraswap', () => {
       );
 
       const daiBalanceBefore = await dai.balanceOf(account.address);
+      const daiBalanceBefore2 = await dai.balanceOf(contract.address);
 
+      const approveTx =
+        await contract.populateTransaction.approveToken(USDC, [
+          PARASWAP_ALLOWANCE_ADDRESS,
+        ]);
       const permitTx =
         await contract.populateTransaction.permitTransferFrom(
           permit,
           signature,
         );
-
       const swapTx = await contract.populateTransaction.swapParaswap(
-        data.tx.data,
+        result,
       );
 
-      await contract.multicall([permitTx.data, swapTx.data]);
+      await contract.multicall([
+        approveTx.data,
+        permitTx.data,
+        swapTx.data,
+      ]);
+
+      const daiBalanceBefore3 = await dai.balanceOf(contract.address);
+
+      console.log(daiBalanceBefore2, daiBalanceBefore3);
+      console.log(daiBalanceBefore);
+      console.log(await dai.balanceOf(account.address));
 
       expect(await dai.balanceOf(account.address)).to.gt(
         daiBalanceBefore,
@@ -142,29 +153,42 @@ describe('Paraswap', () => {
     it('Should swap ETH for USDT', async () => {
       const { contract } = await loadFixture(deploy);
 
+      const proxyFee = 300n;
       const amount = 1n * 10n ** 17n;
 
       const usdtBalanceBefore = await usdt.balanceOf(account.address);
 
       const params = {
-        userAddress: '0x1E7A7Bb102c04e601dE48a68A88Ec6EE59C372b9',
-        receiver: contract.address,
-        destToken: USDT,
-        srcToken: ETH,
-        amount: amount.toString(),
+        srcToken: WETH,
         srcDecimals: 18,
+        destToken: USDT,
         destDecimals: 6,
+        amount: amount.toString(),
+        receiver: account.address,
+        userAddress: contract.address,
       };
 
-      const data = await paraswapCall(params);
+      const result = await paraswapCall(params);
 
-      const wrapTx = await contract.populateTransaction.wrapETH(0);
+      console.log(result);
 
+      const approveTx =
+        await contract.populateTransaction.approveToken(WETH, [
+          PARASWAP_ALLOWANCE_ADDRESS,
+        ]);
+      const wrapTx = await contract.populateTransaction.wrapETH(
+        proxyFee,
+      );
       const swapTx = await contract.populateTransaction.swapParaswap(
-        data,
+        result,
       );
 
-      await contract.multicall([wrapTx.data, swapTx.data]);
+      await contract.multicall(
+        [approveTx.data, wrapTx.data, swapTx.data],
+        {
+          value: amount + proxyFee,
+        },
+      );
 
       expect(await usdt.balanceOf(account.address)).to.gt(
         usdtBalanceBefore,
@@ -179,9 +203,13 @@ describe('Paraswap', () => {
       const new1InchAddress =
         '0xc6845a5c768bf8d7681249f8927877efda425baf';
 
-      await contract.setDexAddresses(new1InchAddress, Paraswap);
+      await contract.setNewAddresses(
+        new1InchAddress,
+        PARASWAP_ADDRESS,
+        ZERO_X_ADDRESS,
+      );
 
-      const OneInchAddress = await contract.OInch();
+      const OneInchAddress = await contract.OneInch();
 
       expect(OneInchAddress).to.hexEqual(new1InchAddress);
     });
@@ -195,8 +223,15 @@ describe('Paraswap', () => {
       await expect(
         contract
           .connect(otherAccount)
-          .setDexAddresses(new1InchAddress, Paraswap),
-      ).to.be.revertedWith('Ownable: caller is not the owner');
+          .setNewAddresses(
+            ZERO_X_ADDRESS,
+            new1InchAddress,
+            PARASWAP_ADDRESS,
+          ),
+      ).to.be.revertedWithCustomError(
+        contract,
+        'OwnableUnauthorizedAccount',
+      );
     });
 
     it('Should withdraw money', async () => {

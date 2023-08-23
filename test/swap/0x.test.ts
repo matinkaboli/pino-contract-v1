@@ -4,7 +4,7 @@ import { constants } from 'ethers';
 import { PERMIT2_ADDRESS } from '@uniswap/permit2-sdk';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { loadFixture } from '@nomicfoundation/hardhat-network-helpers';
-import qs from 'qs';
+
 import {
   DAI,
   USDC,
@@ -13,14 +13,16 @@ import {
   LUSD,
   WHALE3POOL,
 } from '../utils/addresses';
+import zeroXCall from '../utils/0x-call';
 import { IERC20, IWETH9 } from '../../typechain-types';
 import { impersonate, signer } from '../utils/helpers';
 
-const API_QUOTE_URL = 'https://api.0x.org/swap/v1/quote';
-const OneInchV5 = '0x1111111254EEB25477B68fb85Ed929f73A960582';
-const Paraswap = '0x55b916ce078ea594c10a874ba67ecc3d62e29822';
+const ZERO_X_ADDRESS = '0xdef1c0ded9bec7f1a1670819833240f027b25eff';
+const ONE_INCH_V5_ADDRESS =
+  '0x1111111254EEB25477B68fb85Ed929f73A960582';
+const PARASWAP_ADDRESS = '0x55b916ce078ea594c10a874ba67ecc3d62e29822';
 
-describe('0x', () => {
+describe('0x Swap', () => {
   let dai: IERC20;
   let usdc: IERC20;
   let usdt: IERC20;
@@ -30,15 +32,14 @@ describe('0x', () => {
   let otherAccount: SignerWithAddress;
 
   const deploy = async () => {
-    const SwapAgg = await ethers.getContractFactory(
-      'SwapAggregators',
-    );
+    const SwapAgg = await ethers.getContractFactory('Swap');
 
     const contract = await SwapAgg.deploy(
       PERMIT2_ADDRESS,
       WETH,
-      OneInchV5,
-      Paraswap,
+      ZERO_X_ADDRESS,
+      ONE_INCH_V5_ADDRESS,
+      PARASWAP_ADDRESS,
     );
 
     return { contract, sign: await signer(account) };
@@ -79,15 +80,14 @@ describe('0x', () => {
 
   describe('Deployment', () => {
     it('Should deploy with 0 tokens', async () => {
-      const SwapAgg = await ethers.getContractFactory(
-        'SwapAggregators',
-      );
+      const SwapAgg = await ethers.getContractFactory('Swap');
 
       await SwapAgg.deploy(
         PERMIT2_ADDRESS,
         WETH,
-        OneInchV5,
-        Paraswap,
+        ZERO_X_ADDRESS,
+        ONE_INCH_V5_ADDRESS,
+        PARASWAP_ADDRESS,
       );
     });
   });
@@ -98,18 +98,15 @@ describe('0x', () => {
 
       const amount = 500n * 10n ** 6n;
 
-      const params = qs.stringify({
+      const params = {
         sellToken: 'USDC',
         buyToken: 'DAI',
         sellAmount: amount.toString(),
-      });
+      };
 
-      const quote = await fetch(`${API_QUOTE_URL}?${params}`).then(
-        (y) => y.json(),
-      );
+      const data = await zeroXCall(params);
 
-      await contract.approveToken(USDC, [quote.allowanceTarget]);
-
+      await contract.approveToken(USDC, [ZERO_X_ADDRESS]);
       const { signature, permit } = await sign(
         {
           amount,
@@ -126,9 +123,8 @@ describe('0x', () => {
           signature,
         );
 
-      const swapTx = await contract.populateTransaction.swap0x(
-        quote.to,
-        quote.data,
+      const swapTx = await contract.populateTransaction.swapZeroX(
+        data,
       );
 
       const sweepTx = await contract.populateTransaction.sweepToken(
@@ -150,47 +146,46 @@ describe('0x', () => {
     it('Should swap USDT for WETH', async () => {
       const { contract, sign } = await loadFixture(deploy);
 
+      const token = USDT;
       const amount = 500n * 10n ** 6n;
 
-      const params = qs.stringify({
-        sellToken: 'USDT',
-        buyToken: 'WETH',
+      const params = {
+        sellToken: USDT,
+        buyToken: WETH,
         sellAmount: amount.toString(),
-      });
+      };
 
-      const quote = await fetch(`${API_QUOTE_URL}?${params}`).then(
-        (y) => y.json(),
-      );
-
-      await contract.approveToken(USDT, [quote.allowanceTarget]);
+      const data = await zeroXCall(params);
 
       const { signature, permit } = await sign(
         {
+          token,
           amount,
-          token: USDT,
         },
         contract.address,
       );
 
       const daiBalanceBefore = await weth.balanceOf(account.address);
 
+      const approveTx =
+        await contract.populateTransaction.approveToken(token, [
+          ZERO_X_ADDRESS,
+        ]);
       const permitTx =
         await contract.populateTransaction.permitTransferFrom(
           permit,
           signature,
         );
-
-      const swapTx = await contract.populateTransaction.swap0x(
-        quote.to,
-        quote.data,
+      const swapTx = await contract.populateTransaction.swapZeroX(
+        data,
       );
-
       const sweepTx = await contract.populateTransaction.sweepToken(
         WETH,
         account.address,
       );
 
       await contract.multicall([
+        approveTx.data,
         permitTx.data,
         swapTx.data,
         sweepTx.data,
@@ -206,17 +201,15 @@ describe('0x', () => {
 
       const amount = 1n * 10n ** 17n;
 
-      const params = qs.stringify({
+      const params = {
         sellToken: 'WETH',
         buyToken: 'USDC',
         sellAmount: amount.toString(),
-      });
+      };
 
-      const quote = await fetch(`${API_QUOTE_URL}?${params}`).then(
-        (y) => y.json(),
-      );
+      const data = await zeroXCall(params);
 
-      await contract.approveToken(WETH, [quote.allowanceTarget]);
+      await contract.approveToken(WETH, [ZERO_X_ADDRESS]);
 
       const { signature, permit } = await sign(
         {
@@ -234,9 +227,8 @@ describe('0x', () => {
           signature,
         );
 
-      const swapTx = await contract.populateTransaction.swap0x(
-        quote.to,
-        quote.data,
+      const swapTx = await contract.populateTransaction.swapZeroX(
+        data,
       );
 
       const sweepTx = await contract.populateTransaction.sweepToken(
@@ -260,25 +252,20 @@ describe('0x', () => {
 
       const amount = 1n * 10n ** 18n;
 
-      const params = qs.stringify({
-        sellToken: 'ETH',
+      const params = {
+        sellToken: WETH,
         buyToken: LUSD,
         sellAmount: amount.toString(),
-      });
+      };
 
-      const quote = await fetch(`${API_QUOTE_URL}?${params}`).then(
-        (y) => y.json(),
-      );
+      const data = await zeroXCall(params);
 
       const lusdBalanceBefore = await lusd.balanceOf(account.address);
 
       const wrapTx = await contract.populateTransaction.wrapETH(0);
-
-      const swapTx = await contract.populateTransaction.swap0x(
-        quote.to,
-        quote.data,
+      const swapTx = await contract.populateTransaction.swapZeroX(
+        data,
       );
-
       const sweepTx = await contract.populateTransaction.sweepToken(
         LUSD,
         account.address,
@@ -304,9 +291,13 @@ describe('0x', () => {
       const new1InchAddress =
         '0xc6845a5c768bf8d7681249f8927877efda425baf';
 
-      await contract.setDexAddresses(new1InchAddress, Paraswap);
+      await contract.setNewAddresses(
+        new1InchAddress,
+        PARASWAP_ADDRESS,
+        ZERO_X_ADDRESS,
+      );
 
-      const OneInchAddress = await contract.OInch();
+      const OneInchAddress = await contract.OneInch();
 
       expect(OneInchAddress).to.hexEqual(new1InchAddress);
     });
@@ -320,8 +311,15 @@ describe('0x', () => {
       await expect(
         contract
           .connect(otherAccount)
-          .setDexAddresses(new1InchAddress, Paraswap),
-      ).to.be.revertedWith('Ownable: caller is not the owner');
+          .setNewAddresses(
+            new1InchAddress,
+            PARASWAP_ADDRESS,
+            ZERO_X_ADDRESS,
+          ),
+      ).to.be.revertedWithCustomError(
+        contract,
+        'OwnableUnauthorizedAccount',
+      );
     });
 
     it('Should withdraw money', async () => {
