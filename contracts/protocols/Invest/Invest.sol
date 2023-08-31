@@ -35,10 +35,7 @@ contract Invest is IInvest, Pino {
         StETH = _stETH;
         WstETH = _wstETH;
 
-        // Approve WETH
-        _weth.approve(address(_stETH), type(uint256).max);
-        _weth.approve(address(_wstETH), type(uint256).max);
-        _stETH.approve(address(_wstETH), type(uint256).max);
+        _approve(_stETH, address(_wstETH));
     }
 
     /**

@@ -72,7 +72,7 @@ contract Uniswap is IUniswap, Pino {
     constructor(Permit2 _permit2, IWETH9 _weth, INonfungiblePositionManager _nfpm) Pino(_permit2, _weth) {
         nfpm = _nfpm;
 
-        _weth.approve(address(_nfpm), type(uint256).max);
+        _approve(_weth, address(_nfpm));
     }
 
     /**
