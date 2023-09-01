@@ -40,9 +40,9 @@ contract Aave is IAave, Pino {
         lendingPoolV2 = _lendingPoolV2;
         lendingPoolV3 = _lendingPoolV3;
 
-        _weth.approve(address(_wethGateway), type(uint256).max);
-        _weth.approve(address(_lendingPoolV2), type(uint256).max);
-        _weth.approve(address(_lendingPoolV3), type(uint256).max);
+        _approve(_weth, address(_wethGateway));
+        _approve(_weth, address(_lendingPoolV2));
+        _approve(_weth, address(_lendingPoolV3));
     }
 
     /**

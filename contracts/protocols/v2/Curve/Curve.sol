@@ -30,7 +30,7 @@ contract Curve is ICurve, Pino {
     constructor(Permit2 _permit2, IWETH9 _weth, ICurveSwap _curveSwap) Pino(_permit2, _weth) {
         CurveSwap = _curveSwap;
 
-        _weth.approve(address(_curveSwap), type(uint256).max);
+        _approve(_weth, address(CurveSwap));
     }
 
     /**

@@ -32,8 +32,7 @@ contract Compound is ICompound, Pino {
         Comet = _comet;
         CEther = _cEther;
 
-        // Approve WETH to the Comet protocol
-        _weth.approve(address(_comet), type(uint256).max);
+        _approve(_weth, address(_comet));
     }
 
     /**

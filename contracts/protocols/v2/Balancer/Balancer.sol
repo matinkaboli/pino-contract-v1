@@ -29,7 +29,7 @@ contract Balancer is IBalancer, Pino {
     constructor(Permit2 _permit2, IWETH9 _weth, IVault _vault) Pino(_permit2, _weth) {
         Vault = _vault;
 
-        _weth.approve(address(_vault), type(uint256).max);
+        _approve(_weth, address(_vault));
     }
 
     /**

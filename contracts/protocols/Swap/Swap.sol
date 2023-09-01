@@ -35,10 +35,9 @@ contract Swap is ISwap, Pino {
         OneInch = _oneInch;
         Paraswap = _paraswap;
 
-        // Approve WETH9 to all of them
-        _weth.approve(_zeroX, type(uint256).max);
-        _weth.approve(_oneInch, type(uint256).max);
-        _weth.approve(_paraswap, type(uint256).max);
+        _approve(_weth, _zeroX);
+        _approve(_weth, _oneInch);
+        _approve(_weth, _paraswap);
     }
 
     /**

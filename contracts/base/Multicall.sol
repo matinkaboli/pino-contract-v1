@@ -11,8 +11,9 @@ contract Multicall is EthLocker {
     /**
      * @notice Multiple calls on proxy functions
      * @param _calldata The destination address
+     * @dev The other param is for the referral program of the Pino server
      */
-    function multicall(bytes[] calldata _calldata) public payable {
+    function multicall(bytes[] calldata _calldata, uint256) external payable {
         // Unlock ether locker just in case if it was locked before
         unlockEth();
 

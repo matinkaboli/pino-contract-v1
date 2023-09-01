@@ -43,30 +43,6 @@ library SafeERC20 {
     }
 
     /**
-     * @dev Increase the calling contract's allowance toward `spender` by `value`. If `token` returns no value,
-     * non-reverting calls are assumed to be successful.
-     */
-    function safeIncreaseAllowance(IERC20 token, address spender, uint256 value) internal {
-        uint256 oldAllowance = token.allowance(address(this), spender);
-
-        forceApprove(token, spender, oldAllowance + value);
-    }
-
-    /**
-     * @dev Decrease the calling contract's allowance toward `spender` by `requestedDecrease`. If `token` returns no value,
-     * non-reverting calls are assumed to be successful.
-     */
-    function safeDecreaseAllowance(IERC20 token, address spender, uint256 requestedDecrease) internal {
-        unchecked {
-            uint256 currentAllowance = token.allowance(address(this), spender);
-            if (currentAllowance < requestedDecrease) {
-                revert SafeERC20FailedDecreaseAllowance(spender, currentAllowance, requestedDecrease);
-            }
-            forceApprove(token, spender, currentAllowance - requestedDecrease);
-        }
-    }
-
-    /**
      * @dev Set the calling contract's allowance toward `spender` to `value`. If `token` returns no value,
      * non-reverting calls are assumed to be successful. Meant to be used with tokens that require the approval
      * to be set to zero before setting it to a non-zero value, such as USDT.
